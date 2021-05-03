@@ -13,6 +13,8 @@
 #pragma once
 
 #include <memory>
+#include <utility>
+#include "common/logger.h"
 
 namespace bustub {
 
@@ -23,7 +25,7 @@ template <typename T>
 class Matrix {
  protected:
   // TODO(P0): Add implementation
-  Matrix(int r, int c): rows(r), cols(c), linear(new T[r * c]) {}
+  Matrix(int r, int c) : rows(r), cols(c), linear(new T[r * c]) {}
 
   // # of rows in the matrix
   int rows;
@@ -59,7 +61,7 @@ class RowMatrix : public Matrix<T> {
  public:
   // TODO(P0): Add implementation
   RowMatrix(int r, int c) : Matrix<T>(r, c) {
-    data_ = new T*[r];
+    data_ = new T *[r];
     for (int i = 0; i < r; i++) {
       data_[i] = new T[c];
     }
@@ -114,20 +116,25 @@ class RowMatrixOperations {
                                                    std::unique_ptr<RowMatrix<T>> mat2) {
     // TODO(P0): Add code
     std::unique_ptr<RowMatrix<T>> ans;
-    if (mat1 == nullptr || mat2 == nullptr)
+    if (mat1 == nullptr || mat2 == nullptr) {
       return ans;
-    int r1 = mat1->GetRows(), r2 = mat2->GetRows();
-    int c1 = mat1->GetColumns(), c2 = mat2->GetColumns();
-    if (r1 != r2 || c1 != c2) 
+    }
+    int r1 = mat1->GetRows();
+    int r2 = mat2->GetRows();
+    int c1 = mat1->GetColumns();
+    int c2 = mat2->GetColumns();
+    if (r1 != r2 || c1 != c2) {
       return ans;
+    }
     T *linear = new T[r1 * c1];
     ans.reset(new RowMatrix<T>(r1, c1));
     for (int i = 0; i < r1; i++) {
       for (int j = 0; j < c1; j++) {
-        linear[i * r1 + j] = mat1->GetElem(i, j) + mat2->GetElem(i, j);
+        linear[i * c1 + j] = mat1->GetElem(i, j) + mat2->GetElem(i, j);
       }
     }
     ans->MatImport(linear);
+    delete[](linear);
     return ans;
   }
 
@@ -137,10 +144,13 @@ class RowMatrixOperations {
                                                         std::unique_ptr<RowMatrix<T>> mat2) {
     // TODO(P0): Add code
     std::unique_ptr<RowMatrix<T>> ans;
-    if (mat1 == nullptr || mat2 == nullptr)
+    if (mat1 == nullptr || mat2 == nullptr) {
       return ans;
-    int r1 = mat1->GetRows(), r2 = mat2->GetRows();
-    int c1 = mat1->GetColumns(), c2 = mat2->GetColumns();
+    }
+    int r1 = mat1->GetRows();
+    int r2 = mat2->GetRows();
+    int c1 = mat1->GetColumns();
+    int c2 = mat2->GetColumns();
     if (c1 != r2) {
       return ans;
     }
@@ -152,10 +162,11 @@ class RowMatrixOperations {
         for (int k = 0; k < c1; k++) {
           sum += mat1->GetElem(i, k) * mat2->GetElem(k, j);
         }
-        linear[i * r1 + j] = sum;
+        linear[i * c2 + j] = sum;
       }
     }
     ans->MatImport(linear);
+    delete[](linear);
     return ans;
   }
 
