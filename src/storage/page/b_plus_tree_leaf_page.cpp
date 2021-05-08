@@ -27,23 +27,42 @@ namespace bustub {
  * next page id and set max size
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, int max_size) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, int max_size) {
+  this->SetPageType(IndexPageType::LEAF_PAGE);
+  this->SetSize(0);
+  this->SetPageId(page_id);
+  this->SetParentPageId(parent_id);
+  this->SetMaxSize(max_size);
+  this->SetNextPageId(INVALID_PAGE_ID);
+}
 
 /**
  * Helper methods to set/get next page id
  */
 INDEX_TEMPLATE_ARGUMENTS
-page_id_t B_PLUS_TREE_LEAF_PAGE_TYPE::GetNextPageId() const { return INVALID_PAGE_ID; }
+page_id_t B_PLUS_TREE_LEAF_PAGE_TYPE::GetNextPageId() const {
+  return this->next_page_id_;
+}
 
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) {
+  this->next_page_id_ = next_page_id;
+}
 
 /**
  * Helper method to find the first index i so that array[i].first >= key
  * NOTE: This method is only used when generating index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(const KeyType &key, const KeyComparator &comparator) const { return 0; }
+int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(const KeyType &key, const KeyComparator &comparator) const {
+  int index = 0;
+  for (index = 0; index < this->GetSize(); index++) {
+    if (comparator(this->array[index].first, key) >= 0) {
+      break;
+    }
+  }
+  return index;
+}
 
 /*
  * Helper method to find and return the key associated with input "index"(a.k.a
@@ -52,8 +71,8 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(const KeyType &key, const KeyComparator
 INDEX_TEMPLATE_ARGUMENTS
 KeyType B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const {
   // replace with your own code
-  KeyType key{};
-  return key;
+  assert(index >= 0 && index < this->GetSize());
+  return this->array[index].first;
 }
 
 /*
@@ -63,7 +82,8 @@ KeyType B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const {
 INDEX_TEMPLATE_ARGUMENTS
 const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
   // replace with your own code
-  return array[0];
+  assert(index >= 0 && index < this->GetSize());
+  return this->array[index];
 }
 
 /*****************************************************************************
@@ -75,6 +95,14 @@ const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) {
+  int insertIndex = this->KeyIndex(key, comparator);
+  this->IncreaseSize(1);
+  for (int i = this->GetSize() - 1; i > insertIndex; i--) {
+    this->array[i].first = this->array[i - 1].first;
+    this->array[i].second = this->array[i - 1].second;
+  }
+  this->array[insertIndex].first = key;
+  this->array[insertIndex].second = value;
   return 0;
 }
 
@@ -85,7 +113,20 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
  * Remove half of key & value pairs from this page to "recipient" page
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient) {}
+void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(BPlusTreeLeafPage *recipient) {
+  assert(this->GetSize() == this->GetMaxSize() + 1);
+  int total = this->GetSize();
+  int left = total / 2;
+  for (int i = left; i < total; i++) {
+    recipient->array[i - left].first = this->array[i].first;
+    recipient->array[i - left].second = this->array[i].second;
+  }
+  recipient->SetNextPageId(this->GetNextPageId());
+  this->SetNextPageId(recipient->GetPageId());
+
+  this->SetSize(left);
+  recipient->SetSize(total - left);
+}
 
 /*
  * Copy starting from items, and copy {size} number of elements into me.
@@ -103,6 +144,12 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size) {}
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, const KeyComparator &comparator) const {
+  int index = this->KeyIndex(key, comparator);
+  if (index < this->GetSize() && comparator(this->array[index].first, key) == 0) {
+    *value = this->array[index].second;
+    return true;
+  }
+  value = nullptr;
   return false;
 }
 
