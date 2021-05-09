@@ -78,28 +78,25 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
 bool BufferPoolManager::UnpinPageImpl(page_id_t page_id, bool is_dirty) {
   std::lock_guard<std::mutex> guard(this->latch_);
   frame_id_t frame_id;
-  if (page_table_.find(page_id) != page_table_.end()) {
-    frame_id = page_table_[page_id];
-    if (is_dirty) {
-      pages_[frame_id].is_dirty_ = true;
-    }
-    pages_[frame_id].pin_count_--;
-    if (pages_[frame_id].pin_count_ == 0) {
-      replacer_->Unpin(frame_id);
-    }
-    return true;
+  assert(page_table_.find(page_id) != page_table_.end());
+  frame_id = page_table_[page_id];
+  if (is_dirty) {
+    pages_[frame_id].is_dirty_ = true;
   }
-  LOG_ERROR("unpin a not recorded page %d", page_id);
+  pages_[frame_id].pin_count_--;
+  assert(pages_[frame_id].pin_count_ >= 0);
+  if (pages_[frame_id].pin_count_ == 0) {
+    replacer_->Unpin(frame_id);
+  }
   return true;
 }
 
 bool BufferPoolManager::FlushPageImpl(page_id_t page_id) {
   std::lock_guard<std::mutex> guard(this->latch_);
   // Make sure you call DiskManager::WritePage!
-  if (page_table_.find(page_id) != page_table_.end()) {
-    disk_manager_->WritePage(page_id, pages_[page_table_[page_id]].GetData());
-    pages_[page_table_[page_id]].is_dirty_ = false;
-  }
+  assert(page_table_.find(page_id) != page_table_.end());
+  disk_manager_->WritePage(page_id, pages_[page_table_[page_id]].GetData());
+  pages_[page_table_[page_id]].is_dirty_ = false;
   return true;
 }
 
@@ -120,7 +117,6 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
       disk_manager_->WritePage(pages_[frame_id].page_id_, pages_[frame_id].GetData());
       pages_[frame_id].is_dirty_ = false;
     }
-    LOG_DEBUG("erase page %d", pages_[frame_id].page_id_);
     page_table_.erase(pages_[frame_id].page_id_);
   }
 
@@ -131,6 +127,7 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
   pages_[frame_id].pin_count_ = 1;
   pages_[frame_id].is_dirty_ = false;
   page_table_[*page_id] = frame_id;
+  replacer_->Pin(frame_id);
   // 4.   Set the page ID output parameter. Return a pointer to P.
   return &pages_[frame_id];
 }
