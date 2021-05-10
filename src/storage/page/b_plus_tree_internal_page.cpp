@@ -56,7 +56,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
-  for (int index = 1 ; index < this->GetSize(); index++) {
+  for (int index = 1; index < this->GetSize(); index++) {
     if (value == this->array[index].second) {
       return index;
     }
@@ -142,7 +142,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient,
                                                 BufferPoolManager *buffer_pool_manager) {
   page_id_t recipientPage = recipient->GetPageId();
-  // this->GetMaxSize() = 6, this.GetSize() = 7 
+  // this->GetMaxSize() = 6, this.GetSize() = 7
   // x 1 2 3 4 5 6 = > x 1 2 3 | x 5 6
   // this->GetMaxSize() = 7, this.GetSize() = 8
   // x 1 2 3 4 5 6 7 = > x 1 2 3 | x 5 6 7
@@ -153,7 +153,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient
     recipient->array[i - left].second = this->array[i].second;
     // update child page node's parent
     page_id_t movePageId = recipient->array[i - left].second;
-    B_PLUS_TREE_INTERNAL_PAGE_TYPE *childPage = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager->FetchPage(movePageId));
+    B_PLUS_TREE_INTERNAL_PAGE_TYPE *childPage =
+        reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager->FetchPage(movePageId));
     childPage->SetParentPageId(recipientPage);
     buffer_pool_manager->UnpinPage(movePageId, true);
   }

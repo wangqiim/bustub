@@ -31,9 +31,7 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manag
  * Helper function to decide whether current b+tree is empty
  */
 INDEX_TEMPLATE_ARGUMENTS
-bool BPLUSTREE_TYPE::IsEmpty() const { 
-  return this->root_page_id_ == INVALID_PAGE_ID;
-}
+bool BPLUSTREE_TYPE::IsEmpty() const { return this->root_page_id_ == INVALID_PAGE_ID; }
 
 /*****************************************************************************
  * SEARCH
@@ -48,7 +46,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   // 0. init result
   result->resize(1);
   // 1. find leaf
-  LeafPage *leafPage = reinterpret_cast<LeafPage*>(FindLeafPage(key));
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(FindLeafPage(key));
   // 2. lookup leaf
   bool isExist = leafPage->Lookup(key, &(*result)[0], comparator_);
   // 3. unpin leaf
@@ -115,9 +113,9 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) {
   // 0. get leaf
-  LeafPage *leafPage = reinterpret_cast<LeafPage*>(this->FindLeafPage(key));
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(this->FindLeafPage(key));
   // 1. if key isExist return false
-  bool isExist = leafPage->Lookup(key, &(const_cast<ValueType&>(value)), comparator_);
+  bool isExist = leafPage->Lookup(key, &(const_cast<ValueType &>(value)), comparator_);
   if (isExist) {
     this->buffer_pool_manager_->UnpinPage(leafPage->GetPageId(), false);
     return false;
@@ -153,13 +151,13 @@ N *BPLUSTREE_TYPE::Split(N *node) {
   // 1. copy half from node to newNode
   N *newNode = reinterpret_cast<N *>(newPage);
   if (node->IsLeafPage()) {
-    LeafPage *node1 = reinterpret_cast<LeafPage*>(node);
-    LeafPage *node2 = reinterpret_cast<LeafPage*>(newNode);
+    LeafPage *node1 = reinterpret_cast<LeafPage *>(node);
+    LeafPage *node2 = reinterpret_cast<LeafPage *>(newNode);
     node2->Init(newPageID, node1->GetParentPageId(), this->leaf_max_size_);
     node1->MoveHalfTo(node2);
   } else {
-    InternalPage *node1 = reinterpret_cast<InternalPage*>(node);
-    InternalPage *node2 = reinterpret_cast<InternalPage*>(newNode);
+    InternalPage *node1 = reinterpret_cast<InternalPage *>(node);
+    InternalPage *node2 = reinterpret_cast<InternalPage *>(newNode);
     node2->Init(newPageID, node1->GetParentPageId(), this->internal_max_size_);
     node1->MoveHalfTo(node2, this->buffer_pool_manager_);
   }
@@ -181,7 +179,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
   // 1. create a new node containing N, K', N'
   if (old_node->IsRootPage()) {
     page_id_t newRootPageID;
-    InternalPage *newRootPage = reinterpret_cast<InternalPage*>(this->buffer_pool_manager_->NewPage(&newRootPageID));
+    InternalPage *newRootPage = reinterpret_cast<InternalPage *>(this->buffer_pool_manager_->NewPage(&newRootPageID));
     if (newRootPage == nullptr) {
       throw Exception(ExceptionType::OUT_OF_MEMORY, "can't new page from buffer pool manager");
       return;
@@ -200,7 +198,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
   }
   // 3. get parent page
   page_id_t parentPageID = old_node->GetParentPageId();
-  InternalPage *parentPage = reinterpret_cast<InternalPage*>(this->buffer_pool_manager_->FetchPage(parentPageID));
+  InternalPage *parentPage = reinterpret_cast<InternalPage *>(this->buffer_pool_manager_->FetchPage(parentPageID));
   assert(parentPage != nullptr);
   parentPage->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
   new_node->SetParentPageId(parentPageID);
@@ -331,9 +329,9 @@ Page *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost) {
   Page *pagePtr = this->buffer_pool_manager_->FetchPage(this->root_page_id_);
   page_id_t curPageID;
   page_id_t nextPageID;
-  for (curPageID = this->root_page_id_; reinterpret_cast<BPlusTreePage*>(pagePtr)->IsLeafPage() == false;
-        curPageID = nextPageID, pagePtr = buffer_pool_manager_->FetchPage(curPageID)) {
-    InternalPage *internalPage = reinterpret_cast<InternalPage*>(pagePtr);
+  for (curPageID = this->root_page_id_; !reinterpret_cast<BPlusTreePage *>(pagePtr)->IsLeafPage();
+       curPageID = nextPageID, pagePtr = buffer_pool_manager_->FetchPage(curPageID)) {
+    InternalPage *internalPage = reinterpret_cast<InternalPage *>(pagePtr);
     if (leftMost) {
       nextPageID = internalPage->ValueAt(0);
     } else {

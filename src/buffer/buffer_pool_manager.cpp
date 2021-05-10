@@ -47,7 +47,7 @@ Page *BufferPoolManager::FetchPageImpl(page_id_t page_id) {
   }
 
   // 1.2    If P does not exist, find a replacement page (R) from either the free list or the replacer.
- 
+
   if (!free_list_.empty()) {
     // Note that pages are always found from the free list first.
     frame_id = free_list_.front();

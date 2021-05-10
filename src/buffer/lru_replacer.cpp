@@ -58,7 +58,7 @@ void LRUReplacer::Unpin(frame_id_t frame_id) {
   }
 }
 
-size_t LRUReplacer::Size() { 
+size_t LRUReplacer::Size() {
   std::lock_guard<std::mutex> guard(latch_);
   return this->size_;
 }
