@@ -210,9 +210,9 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     return;
   }
   // 5. else split p
-  InternalPage *internalPage2 = this->Split(parentPage);
   this->buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
   this->buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
+  InternalPage *internalPage2 = this->Split(parentPage);
   this->InsertIntoParent(parentPage, internalPage2->KeyAt(0), internalPage2, transaction);
 }
 

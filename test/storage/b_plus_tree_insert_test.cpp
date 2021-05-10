@@ -12,6 +12,63 @@
 
 namespace bustub {
 
+TEST(BPlusTreeTests, InsertTest_ManyInsert) {
+  Schema *key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema);
+
+  DiskManager *disk_manager = new DiskManager("test.db");
+  BufferPoolManager *bpm = new BufferPoolManager(4, disk_manager);  // 5 buffer
+  // create b+ tree
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 2, 3); // 叶子2路， 内部3路
+  GenericKey<8> index_key;
+  RID rid;
+  // create transaction
+  Transaction *transaction = new Transaction(0);
+
+  page_id_t page_id;
+  auto header_page = bpm->NewPage(&page_id);
+  (void)header_page;
+
+  int maxn = 10000;
+  std::vector<int64_t> keys = {};
+  for (int i = 0; i < maxn; i++) {
+    keys.push_back(i);
+  }
+  std::cout << "-----------------------------start insert-------------------------------" << std::endl;
+  for (auto key : keys) {
+    std::cout << "insert: " << key << std::endl;
+    int64_t value = key & 0xFFFFFFFF;
+    rid.Set(static_cast<int32_t>(key >> 32), value);
+    index_key.SetFromInteger(key);
+    tree.Insert(index_key, rid, transaction);
+  }
+  std::cout << "-----------------------------finish insert-------------------------------" << std::endl;
+
+  std::vector<RID> rids;
+  std::cout << "-----------------------------start GetValue-------------------------------" << std::endl;
+  for (auto key : keys) {
+    rids.clear();
+    index_key.SetFromInteger(key);
+    EXPECT_EQ(true, tree.GetValue(index_key, &rids));
+    EXPECT_EQ(rids.size(), 1);
+
+    int64_t value = key & 0xFFFFFFFF;
+    EXPECT_EQ(rids[0].GetSlotNum(), value);
+  }
+  for (int i = maxn; i < maxn * 2; i++) {
+    rids.clear();
+    EXPECT_EQ(false, tree.GetValue(index_key, &rids));
+  }
+
+  bpm->UnpinPage(HEADER_PAGE_ID, true);
+  delete key_schema;
+  delete transaction;
+  delete disk_manager;
+  delete bpm;
+  remove("test.db");
+  remove("test.log");
+}
+
 TEST(BPlusTreeTests, DISABLED_InsertTest1) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
