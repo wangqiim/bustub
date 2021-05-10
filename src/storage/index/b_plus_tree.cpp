@@ -125,7 +125,10 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
   // 3. think about to split
   if (leafPage->GetSize() == leafPage->GetMaxSize()) {
     LeafPage *leafPage2 = this->Split(leafPage);
+    // InsertIntoParent will unpin pages itself
     this->InsertIntoParent(leafPage, leafPage2->KeyAt(0), leafPage2, transaction);
+  } else {
+    this->buffer_pool_manager_->UnpinPage(leafPage->GetPageId(), true);
   }
   return true;
 }
@@ -199,7 +202,6 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
   // 3. get parent page
   page_id_t parentPageID = old_node->GetParentPageId();
   InternalPage *parentPage = reinterpret_cast<InternalPage *>(this->buffer_pool_manager_->FetchPage(parentPageID));
-  assert(parentPage != nullptr);
   parentPage->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
   new_node->SetParentPageId(parentPageID);
   // 4. if parent has less or equal than max_size

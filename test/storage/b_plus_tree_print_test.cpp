@@ -69,6 +69,7 @@ TEST(BptTreeTest, UnitTest) {
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, leaf_max_size, internal_max_size);
   // create transaction
   Transaction *transaction = new Transaction(0);
+  std::vector<bustub::RID> result;
   while (!quit) {
     std::cout << "> ";
     std::cin >> instruction;
@@ -101,6 +102,15 @@ TEST(BptTreeTest, UnitTest) {
       case 'g':
         std::cin >> filename;
         tree.Draw(bpm, filename);
+        break;
+      case 'r':
+        std::cin >> key;
+        index_key.SetFromInteger(key);
+        if (tree.GetValue(index_key, &result, transaction)) {
+          std::cout << "exist" << std::endl;
+        } else {
+          std::cout << "not exist" << std::endl;
+        }
         break;
       case '?':
         std::cout << usageMessage();
