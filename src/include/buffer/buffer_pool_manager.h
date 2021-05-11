@@ -81,6 +81,7 @@ class BufferPoolManager {
   bool DeletePage(page_id_t page_id, bufferpool_callback_fn callback = nullptr) {
     GradingCallback(callback, CallbackType::BEFORE, page_id);
     auto result = DeletePageImpl(page_id);
+    std::cout << "[DeletePage] page:" << page_id << std::endl;
     GradingCallback(callback, CallbackType::AFTER, page_id);
     return result;
   }
