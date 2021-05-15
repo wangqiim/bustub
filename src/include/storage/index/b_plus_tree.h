@@ -120,15 +120,19 @@ class BPlusTree {
 
   Page *getFindLeafPage(const KeyType &key, bool leftMost);
 
-  Page *insertFindLeafPage(const KeyType &key);
+  Page *insertFindLeafPageWithLock(const KeyType &key);
 
   Page *removeFindLeafPage(const KeyType &key);
   
   void clearLockQueue();
-  
+
   void insertCheckAndSolveSafe(Page *page);
 
   void removeCheckAndSolveSafe(Page *page);
+
+  void lockRoot() { this->latch_.lock(); }
+
+  void unlockRoot() { this->latch_.unlock(); }
 
   // member variable
   std::string index_name_;
@@ -137,6 +141,7 @@ class BPlusTree {
   KeyComparator comparator_;
   int leaf_max_size_;
   int internal_max_size_;
+  std::mutex latch_;
 };
 
 }  // namespace bustub

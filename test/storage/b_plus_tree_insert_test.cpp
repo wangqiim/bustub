@@ -12,12 +12,12 @@
 
 namespace bustub {
 
-TEST(BPlusTreeTests, DISABLED_InsertTest_ManyInsert) {
+TEST(BPlusTreeTests, InsertTest_ManyInsert) {
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
 
   DiskManager *disk_manager = new DiskManager("test.db");
-  BufferPoolManager *bpm = new BufferPoolManager(4, disk_manager);  // 5 buffer
+  BufferPoolManager *bpm = new BufferPoolManager(100, disk_manager);  // 5 buffer
   // create b+ tree
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 2, 3);  // 叶子2路， 内部3路
   GenericKey<8> index_key;
@@ -75,7 +75,7 @@ TEST(BPlusTreeTests, InsertTest_Scale) {
   GenericComparator<8> comparator(key_schema);
 
   DiskManager *disk_manager = new DiskManager("test.db");
-  BufferPoolManager *bpm = new BufferPoolManager(4, disk_manager);  // 4 buffer
+  BufferPoolManager *bpm = new BufferPoolManager(100, disk_manager);  // 4 buffer
   // create b+ tree
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 2, 2);  // 叶子2路， 内部3路
   GenericKey<8> index_key;
@@ -618,7 +618,7 @@ TEST(BPlusTreeTests, InsertTest_Scale) {
   int i = 0;
   for (auto key : keys) {
     std::cout << "[" << i++ << "], ";
-    std::fflush(stdout);
+    bpm->Debug();
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
@@ -725,11 +725,13 @@ TEST(BPlusTreeTests, InsertTest2) {
 
   std::vector<int64_t> keys = {5, 4, 3, 2, 1};
   for (auto key : keys) {
+    bpm->Debug();
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
     tree.Insert(index_key, rid, transaction);
   }
+  std::cout << "------Insert done--------------" << std::endl;
 
   std::vector<RID> rids;
   for (auto key : keys) {
@@ -741,7 +743,7 @@ TEST(BPlusTreeTests, InsertTest2) {
     int64_t value = key & 0xFFFFFFFF;
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
-
+  std::cout << "------GetValue done--------------" << std::endl;
   int64_t start_key = 1;
   int64_t current_key = start_key;
   index_key.SetFromInteger(start_key);

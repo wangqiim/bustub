@@ -35,10 +35,10 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::clearLockQueue() {
   while (!Lock_queue_.empty()) {
     page_id_t popPageId = Lock_queue_.front();
-    Page *popPage;
+    Page *popPage = this->buffer_pool_manager_->FetchPage(popPageId);
     Lock_queue_.pop();
-    popPage = this->buffer_pool_manager_->FetchPage(popPageId);
     popPage->WUnlatch();
+    this->buffer_pool_manager_->UnpinPage(popPageId, true);
     this->buffer_pool_manager_->UnpinPage(popPageId, true);
   }
 }
@@ -101,11 +101,14 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   result->resize(1);
   // 1. find leaf
   LeafPage *leafPage = reinterpret_cast<LeafPage *>(getFindLeafPage(key, false));
+  if (leafPage == nullptr) {
+    this->clearLockQueue();
+    return false;
+  }
   // 2. lookup leaf
   bool isExist = leafPage->Lookup(key, &(*result)[0], comparator_);
   // 3. unpin leaf
-  reinterpret_cast<Page *>(leafPage)->RUnlatch();
-  this->buffer_pool_manager_->UnpinPage(leafPage->GetPageId(), true);
+  this->clearLockQueue();
   return isExist;
 }
 
@@ -122,11 +125,13 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) {
   // 0. if is empty StartNewTree
+  this->lockRoot();
   if (this->IsEmpty()) {
-    // TODO:
     this->StartNewTree(key, value);
+    this->unlockRoot();
     return true;
   }
+  // be very carefully remember unlockRoot
   return InsertIntoLeaf(key, value, transaction);
 }
 
@@ -169,11 +174,10 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) {
   // 0. get leaf
-  LeafPage *leafPage = reinterpret_cast<LeafPage *>(this->insertFindLeafPage(key));
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(this->insertFindLeafPageWithLock(key));
   // 1. if key isExist return false
   bool isExist = leafPage->Lookup(key, &(const_cast<ValueType &>(value)), comparator_);
   if (isExist) {
-    this->buffer_pool_manager_->UnpinPage(leafPage->GetPageId(), true);
     this->clearLockQueue();
     return false;
   }
@@ -182,10 +186,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
   // 3. think about to split
   if (leafPage->GetSize() == leafPage->GetMaxSize()) {
     LeafPage *leafPage2 = this->Split(leafPage);
-    // InsertIntoParent will unpin pages itself
     this->InsertIntoParent(leafPage, leafPage2->KeyAt(0), leafPage2, transaction);
-  } else {
-    this->buffer_pool_manager_->UnpinPage(leafPage->GetPageId(), true);
   }
   this->clearLockQueue();
   return true;
@@ -222,7 +223,6 @@ N *BPLUSTREE_TYPE::Split(N *node) {
     node2->Init(newPageID, node1->GetParentPageId(), this->internal_max_size_);
     node1->MoveHalfTo(node2, this->buffer_pool_manager_);
   }
-  std::cout << "split new page" << newPageID << std::endl;
   newPage->WLatch();
   Lock_queue_.push(newPageID);
   return newNode;
@@ -248,6 +248,8 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
       throw Exception(ExceptionType::OUT_OF_MEMORY, "can't new page from buffer pool manager");
       return;
     }
+    reinterpret_cast<Page *>(newRootPage)->WLatch();
+    Lock_queue_.push(newRootPageID);
     newRootPage->Init(newRootPageID, bustub::INVALID_PAGE_ID, this->internal_max_size_);
     newRootPage->PopulateNewRoot(old_node->GetPageId(), key, new_node->GetPageId());
     old_node->SetParentPageId(newRootPageID);
@@ -255,26 +257,20 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     // 2. make R the root of tree
     this->root_page_id_ = newRootPageID;
     this->UpdateRootPageId(false);
-    this->buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
-    this->buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
-    this->buffer_pool_manager_->UnpinPage(newRootPage->GetPageId(), true);
     return;
   }
   // 3. get parent page
   page_id_t parentPageID = old_node->GetParentPageId();
   InternalPage *parentPage = reinterpret_cast<InternalPage *>(this->buffer_pool_manager_->FetchPage(parentPageID));
+  // have pin in queue, so we can unpin deirectly, (because we have to call FetchPage for getting page)
+  this->buffer_pool_manager_->UnpinPage(parentPageID, true);
   parentPage->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
   new_node->SetParentPageId(parentPageID);
   // 4. if parent has less or equal than max_size
   if (parentPage->GetSize() <= parentPage->GetMaxSize()) {
-    this->buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
-    this->buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
-    this->buffer_pool_manager_->UnpinPage(parentPageID, true);
     return;
   }
   // 5. else split p
-  this->buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
-  this->buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
   InternalPage *internalPage2 = this->Split(parentPage);
   this->InsertIntoParent(parentPage, internalPage2->KeyAt(0), internalPage2, transaction);
 }
@@ -556,14 +552,13 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() {
-  if (this->IsEmpty()) {
-    return INDEXITERATOR_TYPE(this->buffer_pool_manager_, INVALID_PAGE_ID, 0);
-  }
   KeyType key;
   LeafPage *leafPage = reinterpret_cast<LeafPage *>(this->getFindLeafPage(key, true));
+  if (leafPage == nullptr) {
+    return INDEXITERATOR_TYPE(this->buffer_pool_manager_, INVALID_PAGE_ID, 0);
+  }
   page_id_t pageId = leafPage->GetPageId();
-  reinterpret_cast<Page *>(leafPage)->RUnlatch();
-  this->buffer_pool_manager_->UnpinPage(pageId, false);
+  this->clearLockQueue();
   return INDEXITERATOR_TYPE(this->buffer_pool_manager_, pageId, 0);
 }
 
@@ -574,15 +569,14 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() {
  */
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
-  if (this->IsEmpty()) {
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(this->getFindLeafPage(key, false));
+  if (leafPage == nullptr) {
     return INDEXITERATOR_TYPE(this->buffer_pool_manager_, INVALID_PAGE_ID, 0);
   }
-  LeafPage *leafPage = reinterpret_cast<LeafPage *>(this->getFindLeafPage(key, false));
   page_id_t pageId = leafPage->GetPageId();
   int index = leafPage->KeyIndex(key, this->comparator_);
   assert(index < leafPage->GetSize());
-  reinterpret_cast<Page *>(leafPage)->RUnlatch();
-  this->buffer_pool_manager_->UnpinPage(pageId, false);
+  this->clearLockQueue();
   return INDEXITERATOR_TYPE(this->buffer_pool_manager_, pageId, index);
 }
 
@@ -626,11 +620,15 @@ Page *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost) {
 
 INDEX_TEMPLATE_ARGUMENTS
 Page *BPLUSTREE_TYPE::getFindLeafPage(const KeyType &key, bool leftMost) {
+  this->lockRoot();
   if (this->IsEmpty()) {
+    this->unlockRoot();
     return nullptr;
   }
   Page *pagePtr = this->buffer_pool_manager_->FetchPage(this->root_page_id_);
   pagePtr->RLatch();
+  Lock_queue_.push(this->root_page_id_);
+  this->unlockRoot();
   page_id_t curPageID;
   page_id_t nextPageID;
   for (curPageID = this->root_page_id_; !reinterpret_cast<BPlusTreePage *>(pagePtr)->IsLeafPage();) {
@@ -640,40 +638,34 @@ Page *BPLUSTREE_TYPE::getFindLeafPage(const KeyType &key, bool leftMost) {
     } else {
       nextPageID = internalPage->Lookup(key, comparator_);
     }
-    this->buffer_pool_manager_->UnpinPage(curPageID, true);
-
-    page_id_t parentId = curPageID;
-    Page *parentPage;
     curPageID = nextPageID;
     pagePtr = buffer_pool_manager_->FetchPage(curPageID);
     reinterpret_cast<Page*>(pagePtr)->RLatch();
-    parentPage = this->buffer_pool_manager_->FetchPage(parentId);
-    parentPage->RUnlatch();
-    this->buffer_pool_manager_->UnpinPage(parentId, true);
+    this->clearLockQueue();
+    Lock_queue_.push(curPageID);
   }
   return pagePtr;
-  // throw Exception(ExceptionType::NOT_IMPLEMENTED, "Implement this for test");
 }
 
+/*
+ * call this function with Root Lock !!! Be carefully!!!
+ */
 INDEX_TEMPLATE_ARGUMENTS
-Page *BPLUSTREE_TYPE::insertFindLeafPage(const KeyType &key) {
-  if (this->IsEmpty()) {
-    return nullptr;
-  }
+Page *BPLUSTREE_TYPE::insertFindLeafPageWithLock(const KeyType &key) {
   Page *pagePtr = this->buffer_pool_manager_->FetchPage(this->root_page_id_);
   pagePtr->WLatch();
   Lock_queue_.push(this->root_page_id_);
-  page_id_t curPageID;
+  this->unlockRoot();
+  page_id_t curPageID = this->root_page_id_;
   page_id_t nextPageID;
-  for (curPageID = this->root_page_id_; !reinterpret_cast<BPlusTreePage *>(pagePtr)->IsLeafPage();) {
+  for (; !reinterpret_cast<BPlusTreePage *>(pagePtr)->IsLeafPage();) {
     InternalPage *internalPage = reinterpret_cast<InternalPage *>(pagePtr);
     nextPageID = internalPage->Lookup(key, comparator_);
-    this->buffer_pool_manager_->UnpinPage(curPageID, true);
-
     curPageID = nextPageID;
     pagePtr = buffer_pool_manager_->FetchPage(curPageID);
     reinterpret_cast<Page*>(pagePtr)->WLatch();
     insertCheckAndSolveSafe(pagePtr);
+    // at least one page in Lock_queue
     Lock_queue_.push(curPageID);
   }
   return pagePtr;

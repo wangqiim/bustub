@@ -49,16 +49,16 @@ class Page {
   inline bool IsDirty() { return is_dirty_; }
 
   /** Acquire the page write latch. */
-  inline void WLatch() { std::cout << "Wlock page" << (this)->GetPageId() << ", debug counter:" << this->debug << " -> "; this->debug++; std::cout << this->debug <<std::endl; rwlatch_.WLock(); }
+  inline void WLatch() { rwlatch_.WLock(); }
 
   /** Release the page write latch. */
-  inline void WUnlatch() { this->debug--; std::cout << "Wunlock " << this->debug <<std::endl; rwlatch_.WUnlock(); }
+  inline void WUnlatch() { rwlatch_.WUnlock(); }
 
   /** Acquire the page read latch. */
-  inline void RLatch() { this->debug++; std::cout << "Rlock " << this->debug <<std::endl; rwlatch_.RLock(); }
+  inline void RLatch() { rwlatch_.RLock(); }
 
   /** Release the page read latch. */
-  inline void RUnlatch() { this->debug--; std::cout << "Runlock " << this->debug <<std::endl; rwlatch_.RUnlock(); }
+  inline void RUnlatch() { rwlatch_.RUnlock(); }
 
   /** @return the page LSN. */
   inline lsn_t GetLSN() { return *reinterpret_cast<lsn_t *>(GetData() + OFFSET_LSN); }
@@ -88,7 +88,6 @@ class Page {
   bool is_dirty_ = false;
   /** Page latch. */
   ReaderWriterLatch rwlatch_;
-  int debug = 0;
 };
 
 }  // namespace bustub
