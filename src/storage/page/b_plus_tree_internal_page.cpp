@@ -155,6 +155,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(BPlusTreeInternalPage *recipient
     page_id_t movePageId = recipient->array[i - left].second;
     B_PLUS_TREE_INTERNAL_PAGE_TYPE *childPage =
         reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(buffer_pool_manager->FetchPage(movePageId));
+    assert(childPage != nullptr);
     childPage->SetParentPageId(recipientPage);
     buffer_pool_manager->UnpinPage(movePageId, true);
   }
@@ -218,6 +219,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage *recipient,
     // 3. update child's parent
     page_id_t childID = this->array[i].second;
     BPlusTreePage *childPage = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager->FetchPage(childID));
+    assert(childPage != nullptr);
     childPage->SetParentPageId(recipient->GetPageId());
     buffer_pool_manager->UnpinPage(childID, true);
   }
@@ -246,6 +248,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeInternalPage *rec
   // 2. update child's parent
   page_id_t childID = this->array[0].second;
   BPlusTreePage *childPage = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager->FetchPage(childID));
+  assert(childPage != nullptr);
   childPage->SetParentPageId(recipient->GetPageId());
   buffer_pool_manager->UnpinPage(childID, true);
   // 3. adjust this->array
@@ -288,6 +291,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeInternalPage *re
   // 3. update child's parent
   page_id_t childID = this->array[this->GetSize() - 1].second;
   BPlusTreePage *childPage = reinterpret_cast<BPlusTreePage *>(buffer_pool_manager->FetchPage(childID));
+  assert(childPage != nullptr);
   childPage->SetParentPageId(recipient->GetPageId());
   buffer_pool_manager->UnpinPage(childID, true);
   this->IncreaseSize(-1);

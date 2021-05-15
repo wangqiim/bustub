@@ -98,7 +98,7 @@ class BPlusTree {
   void delete_key_in_node(N *node, const KeyType &key, Transaction *transaction);
 
   template <typename N>
-  bool CoalesceOrRedistribute(N **node, Transaction *transaction = nullptr);
+  bool CoalesceOrRedistribute(N *node, Transaction *transaction = nullptr);
 
   template <typename N>
   bool Coalesce(N **neighbor_node, N **node, BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> **parent,

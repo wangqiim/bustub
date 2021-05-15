@@ -81,7 +81,7 @@ class BufferPoolManager {
   bool DeletePage(page_id_t page_id, bufferpool_callback_fn callback = nullptr) {
     GradingCallback(callback, CallbackType::BEFORE, page_id);
     auto result = DeletePageImpl(page_id);
-    std::cout << "[DeletePage] page:" << page_id << std::endl;
+    // std::cout << "[DeletePage] page:" << page_id << std::endl;
     GradingCallback(callback, CallbackType::AFTER, page_id);
     return result;
   }
@@ -98,6 +98,11 @@ class BufferPoolManager {
 
   /** @return size of the buffer pool */
   size_t GetPoolSize() { return pool_size_; }
+
+  void Debug() {
+    std::cout << "free_list_.size() = " << free_list_.size() << " , replacer_.size() = " << replacer_->Size()
+              << std::endl;
+  }
 
  protected:
   /**
