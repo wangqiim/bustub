@@ -39,6 +39,8 @@ class BPlusTree {
   using LeafPage = BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>;
 
  public:
+  static thread_local std::queue<page_id_t> Lock_queue_;
+
   explicit BPlusTree(std::string name, BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator,
                      int leaf_max_size = LEAF_PAGE_SIZE, int internal_max_size = INTERNAL_PAGE_SIZE);
 
@@ -115,6 +117,18 @@ class BPlusTree {
   void ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::ofstream &out) const;
 
   void ToString(BPlusTreePage *page, BufferPoolManager *bpm) const;
+
+  Page *getFindLeafPage(const KeyType &key, bool leftMost);
+
+  Page *insertFindLeafPage(const KeyType &key);
+
+  Page *removeFindLeafPage(const KeyType &key);
+  
+  void clearLockQueue();
+  
+  void insertCheckAndSolveSafe(Page *page);
+
+  void removeCheckAndSolveSafe(Page *page);
 
   // member variable
   std::string index_name_;

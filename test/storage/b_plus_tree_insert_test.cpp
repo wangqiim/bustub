@@ -70,7 +70,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest_ManyInsert) {
   remove("test.log");
 }
 
-TEST(BPlusTreeTests, DISABLED_InsertTest_Scale) {
+TEST(BPlusTreeTests, InsertTest_Scale) {
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
 
@@ -615,7 +615,10 @@ TEST(BPlusTreeTests, DISABLED_InsertTest_Scale) {
       4349, 63,   5612, 6002, 8218, 6864, 3755, 3570, 4902, 5322, 3253, 8605, 8142, 9679, 7224, 2042, 4750, 3768, 9691,
       1285, 2911, 6707, 2761, 8101, 4116, 4965, 1612, 7388, 6129, 3115, 4260, 6588, 8489, 6309, 7512, 8164, 6975, 457,
       8053, 7988, 6761, 1388, 42,   7725};
+  int i = 0;
   for (auto key : keys) {
+    std::cout << "[" << i++ << "], ";
+    std::fflush(stdout);
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
