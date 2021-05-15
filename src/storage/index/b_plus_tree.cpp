@@ -494,7 +494,16 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() { return INDEXITERATOR_TYPE(); }
+INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() {
+  if (this->IsEmpty()) {
+    return INDEXITERATOR_TYPE(this->buffer_pool_manager_, INVALID_PAGE_ID, 0);
+  }
+  KeyType key;
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(this->FindLeafPage(key, true));
+  page_id_t pageId = leafPage->GetPageId();
+  this->buffer_pool_manager_->UnpinPage(pageId, false);
+  return INDEXITERATOR_TYPE(this->buffer_pool_manager_, pageId, 0);
+}
 
 /*
  * Input parameter is low key, find the leaf page that contains the input key
@@ -502,7 +511,17 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() { return INDEXITERATOR_TYPE(); }
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) { return INDEXITERATOR_TYPE(); }
+INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
+  if (this->IsEmpty()) {
+    return INDEXITERATOR_TYPE(this->buffer_pool_manager_, INVALID_PAGE_ID, 0);
+  }
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(this->FindLeafPage(key, false));
+  page_id_t pageId = leafPage->GetPageId();
+  int index = leafPage->KeyIndex(key, this->comparator_);
+  assert(index < leafPage->GetSize());
+  this->buffer_pool_manager_->UnpinPage(pageId, false);
+  return INDEXITERATOR_TYPE(this->buffer_pool_manager_, pageId, index);
+}
 
 /*
  * Input parameter is void, construct an index iterator representing the end
@@ -510,7 +529,7 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) { return INDEXITERA
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE BPLUSTREE_TYPE::end() { return INDEXITERATOR_TYPE(); }
+INDEXITERATOR_TYPE BPLUSTREE_TYPE::end() { return INDEXITERATOR_TYPE(this->buffer_pool_manager_, INVALID_PAGE_ID, 0); }
 
 /*****************************************************************************
  * UTILITIES AND DEBUG

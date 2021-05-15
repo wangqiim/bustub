@@ -57,6 +57,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest_ManyInsert) {
   }
   for (int i = maxn; i < maxn * 2; i++) {
     rids.clear();
+    index_key.SetFromInteger(i);
     EXPECT_EQ(false, tree.GetValue(index_key, &rids));
   }
 
@@ -69,7 +70,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest_ManyInsert) {
   remove("test.log");
 }
 
-TEST(BPlusTreeTests, InsertTest_Scale) {
+TEST(BPlusTreeTests, DISABLED_InsertTest_Scale) {
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
 
@@ -641,7 +642,7 @@ TEST(BPlusTreeTests, InsertTest_Scale) {
   remove("test.log");
 }
 
-TEST(BPlusTreeTests, DISABLED_InsertTest1) {
+TEST(BPlusTreeTests, InsertTest1) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
@@ -700,7 +701,7 @@ TEST(BPlusTreeTests, DISABLED_InsertTest1) {
   remove("test.log");
 }
 
-TEST(BPlusTreeTests, DISABLED_InsertTest2) {
+TEST(BPlusTreeTests, InsertTest2) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
