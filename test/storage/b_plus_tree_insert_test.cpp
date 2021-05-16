@@ -51,7 +51,7 @@ TEST(BPlusTreeTests, InsertTest_ManyInsert) {
   index_key.SetFromInteger(keys[45]);
   EXPECT_EQ(true, tree.GetValue(index_key, &rids));
   for (auto key : keys) {
-    std:: cout << "getvalue: " << key << std::endl;
+    std::cout << "getvalue: " << key << std::endl;
     rids.clear();
     index_key.SetFromInteger(key);
     EXPECT_EQ(true, tree.GetValue(index_key, &rids));

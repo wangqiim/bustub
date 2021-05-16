@@ -17,7 +17,7 @@
 #include "storage/page/header_page.h"
 
 namespace bustub {
-  
+
 INDEX_TEMPLATE_ARGUMENTS
 thread_local int BPLUSTREE_TYPE::rootLockedCnt = 0;
 
@@ -49,7 +49,6 @@ void BPLUSTREE_TYPE::clearLockedPages(LockType lockType, Transaction *transactio
   pageSet->clear();
   deletedPageSet->clear();
 }
-
 
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::checkAndSolveSafe(OpType opType, Page *page, Transaction *transaction) {
@@ -665,7 +664,7 @@ Page *BPLUSTREE_TYPE::insertFindLeafPageWithLock(const KeyType &key, Transaction
     nextPageID = internalPage->Lookup(key, comparator_);
     curPageID = nextPageID;
     pagePtr = buffer_pool_manager_->FetchPage(curPageID);
-    this->lock(reinterpret_cast<Page*>(pagePtr), LockType::WRITE);
+    this->lock(reinterpret_cast<Page *>(pagePtr), LockType::WRITE);
     this->checkAndSolveSafe(OpType::INSERT, pagePtr, transaction);
     transaction->AddIntoPageSet(pagePtr);
   }
@@ -684,7 +683,7 @@ Page *BPLUSTREE_TYPE::removeFindLeafPageWithLock(const KeyType &key, Transaction
     nextPageID = internalPage->Lookup(key, comparator_);
     curPageID = nextPageID;
     pagePtr = buffer_pool_manager_->FetchPage(curPageID);
-    this->lock(reinterpret_cast<Page*>(pagePtr), LockType::WRITE);
+    this->lock(reinterpret_cast<Page *>(pagePtr), LockType::WRITE);
     this->checkAndSolveSafe(OpType::REMOVE, pagePtr, transaction);
     transaction->AddIntoPageSet(pagePtr);
   }

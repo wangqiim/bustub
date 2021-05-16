@@ -11,9 +11,9 @@
 #pragma once
 
 #include <queue>
+#include <set>
 #include <string>
 #include <vector>
-#include <set>
 
 #include "concurrency/transaction.h"
 #include "storage/index/index_iterator.h"
@@ -41,8 +41,8 @@ class BPlusTree {
 
  public:
   /**
-  * Get operation: release rootlock at clearLock (lock and unlock update rootLockedCnt)
-  * 
+   * Get operation: release rootlock at clearLock (lock and unlock update rootLockedCnt)
+   *
    */
   static thread_local int rootLockedCnt;
 
@@ -131,7 +131,7 @@ class BPlusTree {
   Page *insertFindLeafPageWithLock(const KeyType &key, Transaction *transaction);
 
   Page *removeFindLeafPageWithLock(const KeyType &key, Transaction *transaction);
-  
+
   void clearLockedPages(LockType lockType, Transaction *transaction);
 
   void lock(Page *page, LockType lockType) {
