@@ -19,7 +19,7 @@ TEST(BPlusTreeTests, DeleteTest_Simple) {
   DiskManager *disk_manager = new DiskManager("test.db");
   BufferPoolManager *bpm = new BufferPoolManager(100, disk_manager);  // 4 buffer
   // create b+ tree
-  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 3, 3);  // 叶子2路， 内部3路
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 11, 10);  // 叶子2路， 内部3路
   GenericKey<8> index_key;
   RID rid;
   // create transaction

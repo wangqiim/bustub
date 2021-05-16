@@ -86,13 +86,17 @@ ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const {
 INDEX_TEMPLATE_ARGUMENTS
 ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key, const KeyComparator &comparator) const {
   // find the largest index that (this->array[index].first) <= key
-  int index;
-  for (index = this->GetSize() - 1; index >= 1; index--) {
-    if (comparator(this->array[index].first, key) <= 0) {
-      break;
+  int le = 0;
+  int ri = this->GetSize() - 1;
+  while (le < ri) {
+    int mid = (le + ri + 1) / 2;
+    if (comparator(this->array[mid].first, key) > 0) {
+      ri = mid - 1;
+    } else {
+      le = mid;
     }
   }
-  return this->array[index].second;
+  return this->array[le].second;
 }
 
 /*****************************************************************************
@@ -280,7 +284,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeInternalPage *re
                                                        BufferPoolManager *buffer_pool_manager) {
   // 1. adjust recipient->array
   recipient->array[0].first = middle_key;
-  for (int i = 1; i <= recipient->GetSize(); i++) {
+  for (int i = recipient->GetSize(); i >= 1; i--) {
     recipient->array[i].first = recipient->array[i - 1].first;
     recipient->array[i].second = recipient->array[i - 1].second;
   }

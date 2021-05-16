@@ -51,13 +51,17 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) { this->n
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(const KeyType &key, const KeyComparator &comparator) const {
-  int index = 0;
-  for (index = 0; index < this->GetSize(); index++) {
-    if (comparator(this->array[index].first, key) >= 0) {
-      break;
+  int le = 0;
+  int ri = this->GetSize();
+  while (le < ri) {
+    int mid = (le + ri) / 2;
+    if (comparator(this->array[mid].first, key) < 0) {
+      le = mid + 1;
+    } else {
+      ri = mid;
     }
   }
-  return index;
+  return le;
 }
 
 /*
