@@ -27,7 +27,6 @@ void LaunchParallelTest(uint64_t num_threads, Args &&... args) {
   for (uint64_t thread_itr = 0; thread_itr < num_threads; ++thread_itr) {
     thread_group[thread_itr].join();
   }
-  std::cout << "join success!" << std::endl;
 }
 
 // helper function to insert
@@ -70,12 +69,9 @@ void DeleteHelper(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> *tree, con
   GenericKey<8> index_key;
   // create transaction
   Transaction *transaction = new Transaction(0);
-  std::cout << "[delete thread: " << thread_itr << "] start " << std::endl;
   for (auto key : remove_keys) {
-    std::cout << "[delete thread: " << thread_itr << "] remove " << key << " start " << std::endl;
     index_key.SetFromInteger(key);
     tree->Remove(index_key, transaction);
-    std::cout << "[delete thread: " << thread_itr << "] remove " << key << " finish " << std::endl;
   }
   delete transaction;
 }
@@ -96,7 +92,7 @@ void DeleteHelperSplit(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> *tree
   delete transaction;
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest1) {
+TEST(BPlusTreeConcurrentTest, InsertTest1) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
@@ -149,7 +145,7 @@ TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest1) {
   remove("test.log");
 }
 
-TEST(BPlusTreeConcurrentTest, DISABLED_InsertTest2) {
+TEST(BPlusTreeConcurrentTest, InsertTest2) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
@@ -219,10 +215,7 @@ TEST(BPlusTreeConcurrentTest, DeleteTest1) {
   std::vector<int64_t> keys = {1, 2, 3, 4, 5};
   InsertHelper(&tree, keys);
 
-  std::cout << "----------print tree!-----------" << std::endl;
-  tree.Print(bpm);
-  std::cout << "----------print done!-----------" << std::endl;
-  std::vector<int64_t> remove_keys = {1, 2, 5, 3, 4};
+  std::vector<int64_t> remove_keys = {1, 5, 3, 4};
   LaunchParallelTest(2, DeleteHelper, &tree, remove_keys);
 
   int64_t start_key = 2;
@@ -237,7 +230,7 @@ TEST(BPlusTreeConcurrentTest, DeleteTest1) {
     size = size + 1;
   }
 
-  EXPECT_EQ(size, 0);
+  EXPECT_EQ(size, 1);
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete key_schema;

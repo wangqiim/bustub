@@ -18,7 +18,8 @@
 
 namespace bustub {
   
-thread_local static bool hasRootLock;
+INDEX_TEMPLATE_ARGUMENTS
+thread_local int BPLUSTREE_TYPE::rootLockedCnt = 0;
 
 INDEX_TEMPLATE_ARGUMENTS
 BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator,
@@ -44,9 +45,11 @@ void BPLUSTREE_TYPE::clearLockedPages(LockType lockType, Transaction *transactio
       this->buffer_pool_manager_->DeletePage(pageId);
     }
   }
+  this->tryUnlockRoot(lockType);
   pageSet->clear();
   deletedPageSet->clear();
 }
+
 
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::checkAndSolveSafe(OpType opType, Page *page, Transaction *transaction) {
@@ -96,7 +99,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   // 0. init result
   result->resize(1);
   // 1. find leaf
-  this->lockRoot();
+  this->lockRoot(LockType::READ);
   LeafPage *leafPage = reinterpret_cast<LeafPage *>(getFindLeafPageWithLock(key, false));
   if (leafPage == nullptr) {
     return false;
@@ -106,6 +109,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   // 3. unpin leaf
   this->unlock(reinterpret_cast<Page *>(leafPage), LockType::READ);
   this->buffer_pool_manager_->UnpinPage(leafPage->GetPageId(), true);
+  this->tryUnlockRoot(LockType::READ);
   return isExist;
 }
 
@@ -122,10 +126,10 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) {
   // 0. if is empty StartNewTree
-  this->lockRoot();
+  this->lockRoot(LockType::WRITE);
   if (this->IsEmpty()) {
     this->StartNewTree(key, value);
-    this->unlockRoot();
+    this->tryUnlockRoot(LockType::WRITE);
     return true;
   }
   // be very carefully remember unlockRoot
@@ -285,9 +289,9 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   // 0. if tree is empty, return
-  this->lockRoot();
+  this->lockRoot(LockType::WRITE);
   if (this->IsEmpty()) {
-    this->unlockRoot();
+    this->tryUnlockRoot(LockType::WRITE);
     return;
   }
   // 1. else find the leaf, and key don't exist in leaf, return
@@ -549,13 +553,14 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() {
   KeyType key;
-  this->lockRoot();
+  this->lockRoot(LockType::READ);
   LeafPage *leafPage = reinterpret_cast<LeafPage *>(this->getFindLeafPageWithLock(key, true));
   if (leafPage == nullptr) {
     return INDEXITERATOR_TYPE(this->buffer_pool_manager_, INVALID_PAGE_ID, 0);
   }
   page_id_t pageId = leafPage->GetPageId();
   this->unlock(reinterpret_cast<Page *>(leafPage), LockType::READ);
+  this->tryUnlockRoot(LockType::READ);
   return INDEXITERATOR_TYPE(this->buffer_pool_manager_, pageId, 0);
 }
 
@@ -566,7 +571,7 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() {
  */
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
-  this->lockRoot();
+  this->lockRoot(LockType::READ);
   LeafPage *leafPage = reinterpret_cast<LeafPage *>(this->getFindLeafPageWithLock(key, false));
   if (leafPage == nullptr) {
     return INDEXITERATOR_TYPE(this->buffer_pool_manager_, INVALID_PAGE_ID, 0);
@@ -575,6 +580,7 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
   int index = leafPage->KeyIndex(key, this->comparator_);
   assert(index < leafPage->GetSize());
   this->unlock(reinterpret_cast<Page *>(leafPage), LockType::READ);
+  this->tryUnlockRoot(LockType::READ);
   return INDEXITERATOR_TYPE(this->buffer_pool_manager_, pageId, index);
 }
 
@@ -619,12 +625,11 @@ Page *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost) {
 INDEX_TEMPLATE_ARGUMENTS
 Page *BPLUSTREE_TYPE::getFindLeafPageWithLock(const KeyType &key, bool leftMost) {
   if (this->IsEmpty()) {
-    this->unlockRoot();
+    this->tryUnlockRoot(LockType::READ);
     return nullptr;
   }
   Page *pagePtr = this->buffer_pool_manager_->FetchPage(this->root_page_id_);
   this->lock(pagePtr, LockType::READ);
-  this->unlockRoot();
   page_id_t curPageID;
   page_id_t nextPageID;
   for (curPageID = this->root_page_id_; !reinterpret_cast<BPlusTreePage *>(pagePtr)->IsLeafPage();) {
@@ -640,6 +645,7 @@ Page *BPLUSTREE_TYPE::getFindLeafPageWithLock(const KeyType &key, bool leftMost)
     this->lock(pagePtr, LockType::READ);
     this->unlock(parentPage, LockType::READ);
     this->buffer_pool_manager_->UnpinPage(parentPage->GetPageId(), true);
+    this->tryUnlockRoot(LockType::READ);
   }
   return pagePtr;
 }
@@ -652,7 +658,6 @@ Page *BPLUSTREE_TYPE::insertFindLeafPageWithLock(const KeyType &key, Transaction
   Page *pagePtr = this->buffer_pool_manager_->FetchPage(this->root_page_id_);
   this->lock(pagePtr, LockType::WRITE);
   transaction->AddIntoPageSet(pagePtr);
-  this->unlockRoot();
   page_id_t curPageID = this->root_page_id_;
   page_id_t nextPageID;
   for (; !reinterpret_cast<BPlusTreePage *>(pagePtr)->IsLeafPage();) {
@@ -672,7 +677,6 @@ Page *BPLUSTREE_TYPE::removeFindLeafPageWithLock(const KeyType &key, Transaction
   Page *pagePtr = this->buffer_pool_manager_->FetchPage(this->root_page_id_);
   this->lock(pagePtr, LockType::WRITE);
   transaction->AddIntoPageSet(pagePtr);
-  this->unlockRoot();
   page_id_t curPageID;
   page_id_t nextPageID;
   for (curPageID = this->root_page_id_; !reinterpret_cast<BPlusTreePage *>(pagePtr)->IsLeafPage();) {

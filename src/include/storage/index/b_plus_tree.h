@@ -40,6 +40,12 @@ class BPlusTree {
   using LeafPage = BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>;
 
  public:
+  /**
+  * Get operation: release rootlock at clearLock (lock and unlock update rootLockedCnt)
+  * 
+   */
+  static thread_local int rootLockedCnt;
+
   enum class LockType { READ, WRITE };
   enum class OpType { GET, INSERT, REMOVE };
 
@@ -146,22 +152,24 @@ class BPlusTree {
 
   void checkAndSolveSafe(OpType opType, Page *page, Transaction *transaction);
 
-  void lockRoot() {
-    latch_.WLock();
-    // if (lockType == LockType::READ) {
-    //   latch_.RLock();
-    //   return
-    // }
-    // latch_.WLock();
+  void lockRoot(LockType lockType) {
+    if (lockType == LockType::READ) {
+      latch_.RLock();
+    } else {
+      latch_.WLock();
+    }
+    rootLockedCnt++;
   }
 
-  void unlockRoot() {
-    latch_.WUnlock();
-    // if (lockType == LockType::READ) {
-    //   latch_.RUnlock();
-    //   return
-    // }
-    // latch_.WUnlock();
+  void tryUnlockRoot(LockType lockType) {
+    if (rootLockedCnt > 0) {
+      if (lockType == LockType::READ) {
+        latch_.RUnlock();
+      } else {
+        latch_.WUnlock();
+      }
+      rootLockedCnt--;
+    }
   }
 
   // member variable
