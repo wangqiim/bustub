@@ -17,7 +17,7 @@ TEST(BPlusTreeTests, DeleteTest_Simple) {
   GenericComparator<8> comparator(key_schema);
 
   DiskManager *disk_manager = new DiskManager("test.db");
-  BufferPoolManager *bpm = new BufferPoolManager(5, disk_manager);  // 4 buffer
+  BufferPoolManager *bpm = new BufferPoolManager(100, disk_manager);  // 4 buffer
   // create b+ tree
   BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 3, 3);  // 叶子2路， 内部3路
   GenericKey<8> index_key;

@@ -36,7 +36,7 @@ TEST(BPlusTreeTests, InsertTest_ManyInsert) {
   }
   std::cout << "-----------------------------start insert-------------------------------" << std::endl;
   for (auto key : keys) {
-    std::cout << "insert: " << key << std::endl;
+    // std::cout << "insert: " << key << std::endl;
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
     index_key.SetFromInteger(key);
@@ -46,7 +46,12 @@ TEST(BPlusTreeTests, InsertTest_ManyInsert) {
 
   std::vector<RID> rids;
   std::cout << "-----------------------------start GetValue-------------------------------" << std::endl;
+
+  rids.clear();
+  index_key.SetFromInteger(keys[45]);
+  EXPECT_EQ(true, tree.GetValue(index_key, &rids));
   for (auto key : keys) {
+    std:: cout << "getvalue: " << key << std::endl;
     rids.clear();
     index_key.SetFromInteger(key);
     EXPECT_EQ(true, tree.GetValue(index_key, &rids));
@@ -627,6 +632,7 @@ TEST(BPlusTreeTests, InsertTest_Scale) {
 
   std::vector<RID> rids;
   for (auto key : keys) {
+    // bpm->Debug();
     rids.clear();
     index_key.SetFromInteger(key);
     EXPECT_EQ(true, tree.GetValue(index_key, &rids));

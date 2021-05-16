@@ -29,6 +29,7 @@ namespace bustub {
  */
 class BufferPoolManager {
  public:
+  thread_local static bool hasRootLock;
   enum class CallbackType { BEFORE, AFTER };
   using bufferpool_callback_fn = void (*)(enum CallbackType, const page_id_t page_id);
 

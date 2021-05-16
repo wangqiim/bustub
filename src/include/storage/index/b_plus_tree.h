@@ -13,6 +13,7 @@
 #include <queue>
 #include <string>
 #include <vector>
+#include <set>
 
 #include "concurrency/transaction.h"
 #include "storage/index/index_iterator.h"
@@ -39,7 +40,8 @@ class BPlusTree {
   using LeafPage = BPlusTreeLeafPage<KeyType, ValueType, KeyComparator>;
 
  public:
-  static thread_local std::queue<page_id_t> Lock_queue_;
+  enum class LockType { READ, WRITE };
+  enum class OpType { GET, INSERT, REMOVE };
 
   explicit BPlusTree(std::string name, BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator,
                      int leaf_max_size = LEAF_PAGE_SIZE, int internal_max_size = INTERNAL_PAGE_SIZE);
@@ -90,7 +92,7 @@ class BPlusTree {
                         Transaction *transaction = nullptr);
 
   template <typename N>
-  N *Split(N *node);
+  N *Split(N *node, Transaction *transaction);
 
   /* wangqi's helper function */
   template <typename N>
@@ -118,21 +120,49 @@ class BPlusTree {
 
   void ToString(BPlusTreePage *page, BufferPoolManager *bpm) const;
 
-  Page *getFindLeafPage(const KeyType &key, bool leftMost);
+  Page *getFindLeafPageWithLock(const KeyType &key, bool leftMost);
 
-  Page *insertFindLeafPageWithLock(const KeyType &key);
+  Page *insertFindLeafPageWithLock(const KeyType &key, Transaction *transaction);
 
-  Page *removeFindLeafPage(const KeyType &key);
+  Page *removeFindLeafPageWithLock(const KeyType &key, Transaction *transaction);
   
-  void clearLockQueue();
+  void clearLockedPages(LockType lockType, Transaction *transaction);
 
-  void insertCheckAndSolveSafe(Page *page);
+  void lock(Page *page, LockType lockType) {
+    if (lockType == LockType::READ) {
+      page->RLatch();
+      return;
+    }
+    page->WLatch();
+  }
 
-  void removeCheckAndSolveSafe(Page *page);
+  void unlock(Page *page, LockType lockType) {
+    if (lockType == LockType::READ) {
+      page->RUnlatch();
+      return;
+    }
+    page->WUnlatch();
+  }
 
-  void lockRoot() { this->latch_.lock(); }
+  void checkAndSolveSafe(OpType opType, Page *page, Transaction *transaction);
 
-  void unlockRoot() { this->latch_.unlock(); }
+  void lockRoot() {
+    latch_.WLock();
+    // if (lockType == LockType::READ) {
+    //   latch_.RLock();
+    //   return
+    // }
+    // latch_.WLock();
+  }
+
+  void unlockRoot() {
+    latch_.WUnlock();
+    // if (lockType == LockType::READ) {
+    //   latch_.RUnlock();
+    //   return
+    // }
+    // latch_.WUnlock();
+  }
 
   // member variable
   std::string index_name_;
@@ -141,7 +171,7 @@ class BPlusTree {
   KeyComparator comparator_;
   int leaf_max_size_;
   int internal_max_size_;
-  std::mutex latch_;
+  ReaderWriterLatch latch_;
 };
 
 }  // namespace bustub
