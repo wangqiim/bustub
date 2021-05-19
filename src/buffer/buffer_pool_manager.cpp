@@ -134,6 +134,7 @@ Page *BufferPoolManager::NewPageImpl(page_id_t *page_id) {
 
 bool BufferPoolManager::DeletePageImpl(page_id_t page_id) {
   std::lock_guard<std::mutex> guard(this->latch_);
+  disk_manager_->DeallocatePage(page_id);
   // 0.   Make sure you call DiskManager::DeallocatePage!
   // 1.   Search the page table for the requested page (P).
   // 1.   If P does not exist, return true.
@@ -149,7 +150,6 @@ bool BufferPoolManager::DeletePageImpl(page_id_t page_id) {
   // 3.   Otherwise, P can be deleted. Remove P from the page table, reset its metadata and return it to the free list.
   replacer_->Pin(frame_id);
   page_table_.erase(page_id);
-  disk_manager_->DeallocatePage(page_id);
   pages_[frame_id].ResetMemory();
   pages_[frame_id].page_id_ = INVALID_PAGE_ID;
   pages_[frame_id].pin_count_ = 0;
