@@ -76,15 +76,30 @@ class Catalog {
    * @return a pointer to the metadata of the new table
    */
   TableMetadata *CreateTable(Transaction *txn, const std::string &table_name, const Schema &schema) {
-    BUSTUB_ASSERT(names_.count(table_name) == 0, "Table names should be unique!");
-    return nullptr;
+    BUSTUB_ASSERT(this->names_.count(table_name) == 0, "Table names should be unique!");
+    table_oid_t table_oid = this->next_table_oid_.fetch_add(1);
+    this->names_.insert({table_name, table_oid});
+    std::unique_ptr<TableHeap> table(new TableHeap(this->bpm_, this->lock_manager_, this->log_manager_, txn));
+    TableMetadata *tableMetadata = new TableMetadata(schema, table_name, std::move(table), table_oid);
+    this->tables_.insert({table_oid, std::unique_ptr<bustub::TableMetadata>(tableMetadata)});
+    return tableMetadata;
   }
 
   /** @return table metadata by name */
-  TableMetadata *GetTable(const std::string &table_name) { return nullptr; }
+  TableMetadata *GetTable(const std::string &table_name) {
+    if (this->names_.count(table_name) == 0) {
+      throw std::out_of_range("for test");
+    }
+    BUSTUB_ASSERT(this->names_.count(table_name) != 0, "table don't exist in this->names_");
+    BUSTUB_ASSERT(this->tables_.count(this->names_[table_name]) != 0, "table don't exist in this->names_");
+    return this->tables_[this->names_[table_name]].get();
+  }
 
   /** @return table metadata by oid */
-  TableMetadata *GetTable(table_oid_t table_oid) { return nullptr; }
+  TableMetadata *GetTable(table_oid_t table_oid) {
+    BUSTUB_ASSERT(this->tables_.count(table_oid) != 0, "table_oid don't exist");
+    return this->tables_[table_oid].get();
+  }
 
   /**
    * Create a new index, populate existing data of the table and return its metadata.
@@ -101,14 +116,39 @@ class Catalog {
   IndexInfo *CreateIndex(Transaction *txn, const std::string &index_name, const std::string &table_name,
                          const Schema &schema, const Schema &key_schema, const std::vector<uint32_t> &key_attrs,
                          size_t keysize) {
-    return nullptr;
+    BUSTUB_ASSERT(this->index_names_.count(index_name) == 0, "Index names should be unique!");
+    BUSTUB_ASSERT(this->names_.count(table_name) != 0, "table_name names should be exist!");
+    BUSTUB_ASSERT(this->tables_.count(this->names_[table_name]) != 0, "table_name names should be exist!");
+    index_oid_t index_oid = this->next_index_oid_.fetch_add(1);
+    // below varient will be move
+    std::unique_ptr<Index> index(new BPlusTreeIndex<KeyType, ValueType, KeyComparator>(
+        new IndexMetadata(std::string(index_name), std::string(table_name), &schema, std::vector<uint32_t>(key_attrs)), this->bpm_));
+    IndexInfo *indexInfo = new IndexInfo(key_schema, index_name, std::move(index), index_oid, table_name, keysize);
+    this->indexes_.insert({index_oid, std::unique_ptr<IndexInfo>(indexInfo)});
+    this->index_names_[table_name][index_name] = index_oid;
+    return indexInfo;
   }
 
-  IndexInfo *GetIndex(const std::string &index_name, const std::string &table_name) { return nullptr; }
+  IndexInfo *GetIndex(const std::string &index_name, const std::string &table_name) {
+    BUSTUB_ASSERT(this->index_names_.count(table_name) != 0, "table name should be exist!");
+    BUSTUB_ASSERT(this->index_names_[table_name].count(index_name) != 0, "index name should be exist!");
+    BUSTUB_ASSERT(this->indexes_.count(this->index_names_[table_name][index_name]), "index_oid should be exist");
+    return this->indexes_[this->index_names_[table_name][index_name]].get();
+  }
 
-  IndexInfo *GetIndex(index_oid_t index_oid) { return nullptr; }
+  IndexInfo *GetIndex(index_oid_t index_oid) {
+    BUSTUB_ASSERT(this->indexes_.count(index_oid) != 0, "index_oid should be exist!");
+    return this->indexes_[index_oid].get();
+  }
 
-  std::vector<IndexInfo *> GetTableIndexes(const std::string &table_name) { return std::vector<IndexInfo *>(); }
+  std::vector<IndexInfo *> GetTableIndexes(const std::string &table_name) {
+    std::vector<IndexInfo *> indexInfos;
+    for (auto &index : this->index_names_[table_name]) {
+      BUSTUB_ASSERT(this->indexes_.count(index.second) != 0, "index_oid should be exist");
+      indexInfos.push_back(this->indexes_[index.second].get());
+    }
+    return indexInfos;
+  }
 
  private:
   [[maybe_unused]] BufferPoolManager *bpm_;

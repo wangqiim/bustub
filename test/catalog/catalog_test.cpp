@@ -22,7 +22,7 @@
 namespace bustub {
 
 // NOLINTNEXTLINE
-TEST(CatalogTest, DISABLED_CreateTableTest) {
+TEST(CatalogTest, CreateTableTest) {
   auto disk_manager = new DiskManager("catalog_test.db");
   auto bpm = new BufferPoolManager(32, disk_manager);
   auto catalog = new Catalog(bpm, nullptr, nullptr);
@@ -38,7 +38,20 @@ TEST(CatalogTest, DISABLED_CreateTableTest) {
 
   Schema schema(columns);
   auto *table_metadata = catalog->CreateTable(nullptr, table_name, schema);
-  (void)table_metadata;
+
+  EXPECT_NE(nullptr, catalog->GetTable(table_metadata->name_));
+  EXPECT_NE(nullptr, catalog->GetTable(table_metadata->oid_));
+
+  std::string index_name = "potato_index";
+  std::vector<Column> key_columns;
+  key_columns.emplace_back("A", TypeId::INTEGER);
+  Schema key_schema(key_columns);
+  std::vector<uint32_t> key_attrs{0};
+  IndexInfo *indexInfo = catalog->CreateIndex<GenericKey<8>, RID, GenericComparator<8>>(
+      nullptr, index_name, table_name, schema, key_schema, key_attrs, static_cast<size_t>(4));
+
+  EXPECT_NE(nullptr, catalog->GetIndex(indexInfo->index_oid_));
+  EXPECT_NE(nullptr, catalog->GetIndex(indexInfo->name_, indexInfo->table_name_));
 
   // Notice that this test case doesn't check anything! :(
   // It is up to you to extend it
