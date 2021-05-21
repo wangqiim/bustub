@@ -16,19 +16,20 @@ IndexScanExecutor::IndexScanExecutor(ExecutorContext *exec_ctx, const IndexScanP
     : AbstractExecutor(exec_ctx), plan_(plan) {}
 
 void IndexScanExecutor::Init() {
-  this->indexInfo_ = exec_ctx_->GetCatalog()->GetIndex(plan_->GetIndexOid());
-  this->tableHeap_ = exec_ctx_->GetCatalog()->GetTable(this->indexInfo_->table_name_)->table_.get();
-  this->iter_ = std::make_unique<TableIterator>(this->tableHeap_->Begin(exec_ctx_->GetTransaction()));
+  assert(this->getKeySchema().ToString() == this->GetOutputSchema()->ToString());
+  this->iter_ = this->getBeginIterator();
 }
 
 bool IndexScanExecutor::Next(Tuple *tuple, RID *rid) {
-  TableIterator &iter = *(this->iter_);
-  while (iter != this->tableHeap_->End()) {
-    *tuple = *(iter++);
-    *rid = tuple->GetRid();
-    // i don't know what should i do, because i lack test file
-    Tuple keyTuple = tuple->KeyFromTuple(this->getSchema(), this->getKeySchema(), this->getKeyAttrs());
-    if (this->plan_->GetPredicate()->Evaluate(&keyTuple, this->GetOutputSchema()).GetAs<bool>()) {
+  while (this->iter_ != this->getEndIterator()) {
+    // For this project, you can safely assume the key value type for index is
+    // <GenericKey<8>, RID, GenericComparator<8>> to not worry about template,
+    // though a more general solution is also welcomed
+    *rid = (*(this->iter_)).second;
+    ++this->iter_;
+    this->getTableHeap()->GetTuple(*rid, tuple, this->exec_ctx_->GetTransaction());
+    *tuple = tuple->KeyFromTuple(this->getSchema(), this->getKeySchema(), this->getKeyAttrs());
+    if (this->plan_->GetPredicate()->Evaluate(tuple, this->GetOutputSchema()).GetAs<bool>()) {
       return true;
     }
   }

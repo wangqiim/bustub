@@ -18,6 +18,7 @@
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
 #include "execution/plans/index_scan_plan.h"
+#include "storage/index/index_iterator.h"
 #include "storage/table/tuple.h"
 
 namespace bustub {
@@ -42,18 +43,34 @@ class IndexScanExecutor : public AbstractExecutor {
   bool Next(Tuple *tuple, RID *rid) override;
 
  private:
-  const Schema &getSchema() const {
-    return this->exec_ctx_->GetCatalog()->GetTable(this->indexInfo_->table_name_)->schema_;
+  IndexInfo *getIndexInfo() const { return this->exec_ctx_->GetCatalog()->GetIndex(plan_->GetIndexOid()); }
+
+  Index *getIndex() const { return this->getIndexInfo()->index_.get(); }
+
+  IndexIterator<GenericKey<8>, RID, GenericComparator<8>> getBeginIterator() const {
+    return reinterpret_cast<BPlusTreeIndex<GenericKey<8>, RID, GenericComparator<8>> *>(this->getIndex())
+        ->GetBeginIterator();
   }
 
-  const Schema &getKeySchema() const { return *(indexInfo_->index_->GetKeySchema()); }
+  IndexIterator<GenericKey<8>, RID, GenericComparator<8>> getEndIterator() const {
+    return reinterpret_cast<BPlusTreeIndex<GenericKey<8>, RID, GenericComparator<8>> *>(this->getIndex())
+        ->GetEndIterator();
+  }
 
-  const std::vector<uint32_t> &getKeyAttrs() const { return this->indexInfo_->index_->GetKeyAttrs(); }
+  TableHeap *getTableHeap() const {
+    return this->exec_ctx_->GetCatalog()->GetTable(this->getIndexInfo()->table_name_)->table_.get();
+  }
+
+  const Schema &getSchema() const {
+    return this->exec_ctx_->GetCatalog()->GetTable(this->getIndexInfo()->table_name_)->schema_;
+  }
+
+  const Schema &getKeySchema() const { return *(this->getIndexInfo()->index_->GetKeySchema()); }
+
+  const std::vector<uint32_t> &getKeyAttrs() const { return this->getIndexInfo()->index_->GetKeyAttrs(); }
 
   /** The index scan plan node to be executed. */
   const IndexScanPlanNode *plan_;
-  IndexInfo *indexInfo_;
-  TableHeap *tableHeap_;
-  std::unique_ptr<TableIterator> iter_;
+  IndexIterator<GenericKey<8>, RID, GenericComparator<8>> iter_;
 };
 }  // namespace bustub
