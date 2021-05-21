@@ -40,7 +40,22 @@ class SeqScanExecutor : public AbstractExecutor {
   const Schema *GetOutputSchema() override { return plan_->OutputSchema(); }
 
  private:
+  Schema *getSchema() const { return &(this->exec_ctx_->GetCatalog()->GetTable(this->plan_->GetTableOid())->schema_); }
+
+  Tuple genOutputTuple(const Tuple *raw_tuple, const Schema *schema, const Schema *outputSchema) {
+    std::vector<Value> values;
+    // generate new_tuple from raw_tuple through outputschema
+    for (const Column &col : outputSchema->GetColumns()) {
+      Value val = raw_tuple->GetValue(schema, schema->GetColIdx(col.GetName()));
+      values.push_back(val);
+    }
+    return Tuple(values, this->GetOutputSchema());
+  }
+
   /** The sequential scan plan node to be executed. */
   const SeqScanPlanNode *plan_;
+  TableHeap *tableHeap_;
+  // must use smart_ptr to avoid memory leak!!!
+  std::unique_ptr<TableIterator> iter_;
 };
 }  // namespace bustub
