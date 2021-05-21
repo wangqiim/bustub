@@ -42,7 +42,18 @@ class IndexScanExecutor : public AbstractExecutor {
   bool Next(Tuple *tuple, RID *rid) override;
 
  private:
+  const Schema &getSchema() const {
+    return this->exec_ctx_->GetCatalog()->GetTable(this->indexInfo_->table_name_)->schema_;
+  }
+
+  const Schema &getKeySchema() const { return *(indexInfo_->index_->GetKeySchema()); }
+
+  const std::vector<uint32_t> &getKeyAttrs() const { return this->indexInfo_->index_->GetKeyAttrs(); }
+
   /** The index scan plan node to be executed. */
   const IndexScanPlanNode *plan_;
+  IndexInfo *indexInfo_;
+  TableHeap *tableHeap_;
+  std::unique_ptr<TableIterator> iter_;
 };
 }  // namespace bustub

@@ -122,7 +122,8 @@ class Catalog {
     index_oid_t index_oid = this->next_index_oid_.fetch_add(1);
     // below varient will be move
     std::unique_ptr<Index> index(new BPlusTreeIndex<KeyType, ValueType, KeyComparator>(
-        new IndexMetadata(std::string(index_name), std::string(table_name), &schema, std::vector<uint32_t>(key_attrs)), this->bpm_));
+        new IndexMetadata(std::string(index_name), std::string(table_name), &schema, std::vector<uint32_t>(key_attrs)),
+        this->bpm_));
     IndexInfo *indexInfo = new IndexInfo(key_schema, index_name, std::move(index), index_oid, table_name, keysize);
     this->indexes_.insert({index_oid, std::unique_ptr<IndexInfo>(indexInfo)});
     this->index_names_[table_name][index_name] = index_oid;
