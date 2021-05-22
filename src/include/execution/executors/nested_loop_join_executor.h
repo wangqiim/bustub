@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
@@ -46,7 +47,32 @@ class NestedLoopJoinExecutor : public AbstractExecutor {
   bool Next(Tuple *tuple, RID *rid) override;
 
  private:
+  Tuple genJoinTuple(Tuple *left_tuple, Tuple *right_tuple, const Schema *left_schema, const Schema *right_schema) {
+    std::vector<Value> values;
+    for (auto &col : this->GetOutputSchema()->GetColumns()) {
+      try {
+        Value value = left_tuple->GetValue(left_schema, left_schema->GetColIdx(col.GetName()));
+        values.push_back(value);
+        continue;
+      } catch (std::logic_error &e) {
+        // do nothing
+      }
+      try {
+        Value value = right_tuple->GetValue(right_schema, right_schema->GetColIdx(col.GetName()));
+        values.push_back(value);
+        continue;
+      } catch (std::logic_error &e) {
+        // do nothing
+      }
+      UNREACHABLE("Column in GetOutputSchema does not exist");
+    }
+    return Tuple(values, this->GetOutputSchema());
+  }
+
   /** The NestedLoop plan node to be executed. */
   const NestedLoopJoinPlanNode *plan_;
+  std::unique_ptr<AbstractExecutor> left_executor_;
+  std::unique_ptr<AbstractExecutor> right_executor_;
+  std::unique_ptr<Tuple> outer_tuple_;
 };
 }  // namespace bustub
