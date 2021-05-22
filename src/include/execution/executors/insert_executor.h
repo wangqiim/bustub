@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "execution/executor_context.h"
 #include "execution/executors/abstract_executor.h"
@@ -45,7 +46,21 @@ class InsertExecutor : public AbstractExecutor {
   bool Next([[maybe_unused]] Tuple *tuple, RID *rid) override;
 
  private:
+  Schema *getSchema() const { return &(this->exec_ctx_->GetCatalog()->GetTable(this->plan_->TableOid())->schema_); }
+
+  std::vector<IndexInfo *> getTableIndexes() const {
+    return this->exec_ctx_->GetCatalog()->GetTableIndexes(
+        this->exec_ctx_->GetCatalog()->GetTable(this->plan_->TableOid())->name_);
+  }
+
+  TableHeap *getTableHeap() const {
+    return this->exec_ctx_->GetCatalog()->GetTable(this->plan_->TableOid())->table_.get();
+  }
+
   /** The insert plan node to be executed. */
   const InsertPlanNode *plan_;
+  const std::unique_ptr<AbstractExecutor> child_executor_;
+  std::vector<IndexInfo *> tableIndexes_;
+  size_t num_inserted_;
 };
 }  // namespace bustub
