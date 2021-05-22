@@ -47,9 +47,14 @@ class DeleteExecutor : public AbstractExecutor {
   bool Next([[maybe_unused]] Tuple *tuple, RID *rid) override;
 
  private:
+  Schema *getSchema() const { return &(this->exec_ctx_->GetCatalog()->GetTable(this->plan_->TableOid())->schema_); }
+
   /** The delete plan node to be executed. */
   const DeletePlanNode *plan_;
   /** The child executor to obtain rid from. */
   std::unique_ptr<AbstractExecutor> child_executor_;
+  /** Metadata identifying the table that should be deleted. */
+  const TableMetadata *table_info_;
+  std::vector<IndexInfo *> tableIndexes_;
 };
 }  // namespace bustub

@@ -101,10 +101,16 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   this->lockRoot(LockType::READ);
   LeafPage *leafPage = reinterpret_cast<LeafPage *>(getFindLeafPageWithLock(key, false));
   if (leafPage == nullptr) {
+    // project3 need clear result
+    result->clear();
     return false;
   }
   // 2. lookup leaf
   bool isExist = leafPage->Lookup(key, &(*result)[0], comparator_);
+  if (!isExist) {
+    // project3 need clear result
+    result->clear();
+  }
   // 3. unpin leaf
   this->unlock(reinterpret_cast<Page *>(leafPage), LockType::READ);
   this->buffer_pool_manager_->UnpinPage(leafPage->GetPageId(), true);
