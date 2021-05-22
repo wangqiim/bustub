@@ -23,7 +23,7 @@ void DeleteExecutor::Init() {
   this->table_info_ = this->exec_ctx_->GetCatalog()->GetTable(this->plan_->TableOid());
   this->tableIndexes_ = this->exec_ctx_->GetCatalog()->GetTableIndexes(this->table_info_->name_);
   if (this->child_executor_ != nullptr) {
-    this->child_executor_->Init(); 
+    this->child_executor_->Init();
   }
 }
 
