@@ -48,7 +48,61 @@ class NestIndexJoinExecutor : public AbstractExecutor {
   bool Next(Tuple *tuple, RID *rid) override;
 
  private:
+  IndexInfo *getIndexInfo() const {
+    std::string table_name = this->exec_ctx_->GetCatalog()->GetTable(this->plan_->GetInnerTableOid())->name_;
+    return this->exec_ctx_->GetCatalog()->GetIndex(this->plan_->GetIndexName(), table_name);
+  }
+
+  Index *getIndex() const { return this->getIndexInfo()->index_.get(); }
+
+  IndexIterator<GenericKey<8>, RID, GenericComparator<8>> getBeginIterator() const {
+    return reinterpret_cast<BPlusTreeIndex<GenericKey<8>, RID, GenericComparator<8>> *>(this->getIndex())
+        ->GetBeginIterator();
+  }
+
+  IndexIterator<GenericKey<8>, RID, GenericComparator<8>> getEndIterator() const {
+    return reinterpret_cast<BPlusTreeIndex<GenericKey<8>, RID, GenericComparator<8>> *>(this->getIndex())
+        ->GetEndIterator();
+  }
+
+  TableHeap *getTableHeap() const {
+    return this->exec_ctx_->GetCatalog()->GetTable(this->plan_->GetInnerTableOid())->table_.get();
+  }
+
+  // const Schema &getSchema() const {
+  //   return this->exec_ctx_->GetCatalog()->GetTable(this->getIndexInfo()->table_name_)->schema_;
+  // }
+
+  const Schema &getKeySchema() const { return *(this->getIndexInfo()->index_->GetKeySchema()); }
+
+  Tuple genJoinTuple(Tuple *left_tuple, Tuple *right_tuple, const Schema *left_schema, const Schema *right_schema) {
+    std::vector<Value> values;
+    for (auto &col : this->GetOutputSchema()->GetColumns()) {
+      try {
+        Value value = left_tuple->GetValue(left_schema, left_schema->GetColIdx(col.GetName()));
+        values.push_back(value);
+        continue;
+      } catch (std::logic_error &e) {
+        // do nothing
+      }
+      try {
+        Value value = right_tuple->GetValue(right_schema, right_schema->GetColIdx(col.GetName()));
+        values.push_back(value);
+        continue;
+      } catch (std::logic_error &e) {
+        // do nothing
+      }
+      UNREACHABLE("Column in GetOutputSchema does not exist");
+    }
+    return Tuple(values, this->GetOutputSchema());
+  }
+
+  const std::vector<uint32_t> &getKeyAttrs() const { return this->getIndexInfo()->index_->GetKeyAttrs(); }
   /** The nested index join plan node. */
   const NestedIndexJoinPlanNode *plan_;
+  std::unique_ptr<AbstractExecutor> child_executor_;
+  std::unique_ptr<Tuple> outer_tuple_;
+  /* this iter_ used to travels inner table */
+  IndexIterator<GenericKey<8>, RID, GenericComparator<8>> iter_;
 };
 }  // namespace bustub
