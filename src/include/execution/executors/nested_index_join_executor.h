@@ -65,13 +65,13 @@ class NestIndexJoinExecutor : public AbstractExecutor {
         ->GetEndIterator();
   }
 
-  TableHeap *getTableHeap() const {
+  TableHeap *getInnerTableHeap() const {
     return this->exec_ctx_->GetCatalog()->GetTable(this->plan_->GetInnerTableOid())->table_.get();
   }
 
-  // const Schema &getSchema() const {
-  //   return this->exec_ctx_->GetCatalog()->GetTable(this->getIndexInfo()->table_name_)->schema_;
-  // }
+  const Schema &getInnerSchema() const {
+    return this->exec_ctx_->GetCatalog()->GetTable(this->getIndexInfo()->table_name_)->schema_;
+  }
 
   const Schema &getKeySchema() const { return *(this->getIndexInfo()->index_->GetKeySchema()); }
 
@@ -98,6 +98,17 @@ class NestIndexJoinExecutor : public AbstractExecutor {
   }
 
   const std::vector<uint32_t> &getKeyAttrs() const { return this->getIndexInfo()->index_->GetKeyAttrs(); }
+
+  Tuple genOutputTuple(const Tuple *raw_tuple, const Schema *schema, const Schema *outputSchema) {
+    std::vector<Value> values;
+    // generate new_tuple from raw_tuple through outputschema
+    for (const Column &col : outputSchema->GetColumns()) {
+      Value val = raw_tuple->GetValue(schema, schema->GetColIdx(col.GetName()));
+      values.push_back(val);
+    }
+    return Tuple(values, outputSchema);
+  }
+
   /** The nested index join plan node. */
   const NestedIndexJoinPlanNode *plan_;
   std::unique_ptr<AbstractExecutor> child_executor_;

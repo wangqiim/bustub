@@ -42,7 +42,7 @@ class ExecutionEngine {
       Tuple tuple;
       RID rid;
       while (executor->Next(&tuple, &rid)) {
-        if (result_set != nullptr) {
+        if (result_set != nullptr && tuple.GetLength() != 0) {
           result_set->push_back(tuple);
         }
       }

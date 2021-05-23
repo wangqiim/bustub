@@ -22,16 +22,13 @@ void NestIndexJoinExecutor::Init() {
   this->outer_tuple_ = std::make_unique<Tuple>();
   assert(this->child_executor_ != nullptr);
   this->child_executor_->Init();
-  RID rid;
-  if (!this->child_executor_->Next(this->outer_tuple_.get(), &rid)) {
-    this->outer_tuple_ = nullptr;
-  }
 }
 
 bool NestIndexJoinExecutor::Next(Tuple *tuple, RID *rid) {
   Tuple right_tuple;
+  Tuple inner_tuple;
   assert(this->outer_tuple_ != nullptr);
-  while (!this->child_executor_->Next(this->outer_tuple_.get(), rid)) {
+  while (this->child_executor_->Next(this->outer_tuple_.get(), rid)) {
     // i think it is wrong, because i use inner index as outer index. i can't get outer inner :(
     Tuple key =
         this->outer_tuple_->KeyFromTuple(*this->plan_->OuterTableSchema(), this->getKeySchema(), this->getKeyAttrs());
@@ -40,12 +37,13 @@ bool NestIndexJoinExecutor::Next(Tuple *tuple, RID *rid) {
     if (rids.empty()) {
       continue;
     }
-    this->getTableHeap()->GetTuple(rids[0], &right_tuple, this->exec_ctx_->GetTransaction());
+    this->getInnerTableHeap()->GetTuple(rids[0], &right_tuple, this->exec_ctx_->GetTransaction());
+    inner_tuple = this->genOutputTuple(&right_tuple, &this->getInnerSchema(), this->plan_->InnerTableSchema());
     if (this->plan_->Predicate()
-            ->EvaluateJoin(this->outer_tuple_.get(), this->plan_->OuterTableSchema(), &right_tuple,
+            ->EvaluateJoin(this->outer_tuple_.get(), this->plan_->OuterTableSchema(), &inner_tuple,
                            this->plan_->InnerTableSchema())
             .GetAs<bool>()) {
-      *tuple = this->genJoinTuple(this->outer_tuple_.get(), &right_tuple, this->plan_->OuterTableSchema(),
+      *tuple = this->genJoinTuple(this->outer_tuple_.get(), &inner_tuple, this->plan_->OuterTableSchema(),
                                   this->plan_->InnerTableSchema());
       return true;
     }

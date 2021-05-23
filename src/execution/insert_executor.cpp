@@ -28,27 +28,28 @@ void InsertExecutor::Init() {
 }
 
 bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
+  Tuple raw_tuple;
   if (this->plan_->IsRawInsert()) {
     size_t i = this->num_inserted_;
     if (i >= this->plan_->RawValues().size()) {
       return false;
     }
-    *tuple = Tuple(this->plan_->RawValuesAt(i), this->getSchema());
-    assert(this->getTableHeap()->InsertTuple(*tuple, rid, this->exec_ctx_->GetTransaction()) == true);
+    raw_tuple = Tuple(this->plan_->RawValuesAt(i), this->getSchema());
+    assert(this->getTableHeap()->InsertTuple(raw_tuple, rid, this->exec_ctx_->GetTransaction()) == true);
     for (auto index : this->tableIndexes_) {
       Tuple key =
-          tuple->KeyFromTuple(*(this->getSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
+          raw_tuple.KeyFromTuple(*(this->getSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
       index->index_->InsertEntry(key, *rid, this->exec_ctx_->GetTransaction());
     }
     this->num_inserted_++;
     return true;
   }
 
-  if (child_executor_->Next(tuple, rid)) {
-    assert(this->getTableHeap()->InsertTuple(*tuple, rid, this->exec_ctx_->GetTransaction()) == true);
+  if (child_executor_->Next(&raw_tuple, rid)) {
+    assert(this->getTableHeap()->InsertTuple(raw_tuple, rid, this->exec_ctx_->GetTransaction()) == true);
     for (auto index : this->tableIndexes_) {
       Tuple key =
-          tuple->KeyFromTuple(*(this->getSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
+          raw_tuple.KeyFromTuple(*(this->getSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
       index->index_->InsertEntry(key, *rid, this->exec_ctx_->GetTransaction());
     }
     return true;
