@@ -35,12 +35,12 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
 
     // delete old_tuple and insert new index
     for (auto index : this->tableIndexes_) {
-      Tuple old_key =
-          old_tup.KeyFromTuple(*(this->child_executor_->GetOutputSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
+      Tuple old_key = old_tup.KeyFromTuple(*(this->child_executor_->GetOutputSchema()),
+                                           *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
       index->index_->DeleteEntry(old_key, *rid, this->exec_ctx_->GetTransaction());
 
-      Tuple key =
-          tuple->KeyFromTuple(*(this->child_executor_->GetOutputSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
+      Tuple key = tuple->KeyFromTuple(*(this->child_executor_->GetOutputSchema()), *(index->index_->GetKeySchema()),
+                                      index->index_->GetKeyAttrs());
       index->index_->InsertEntry(key, *rid, this->exec_ctx_->GetTransaction());
     }
     return true;

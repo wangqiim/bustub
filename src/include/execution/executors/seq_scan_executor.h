@@ -48,7 +48,7 @@ class SeqScanExecutor : public AbstractExecutor {
     // generate new_tuple from raw_tuple through outputschema
     for (const Column &col : outputSchema->GetColumns()) {
       try {
-        // I think it is a error solution to pass SchemaChangeSeqScan test, I think this test is error. 
+        // I think it is a error solution to pass SchemaChangeSeqScan test, I think this test is error.
         Value val = raw_tuple->GetValue(schema, schema->GetColIdx(col.GetName()));
         values.push_back(val);
       } catch (std::logic_error &e) {
