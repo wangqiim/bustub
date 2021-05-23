@@ -69,6 +69,16 @@ class IndexScanExecutor : public AbstractExecutor {
 
   const std::vector<uint32_t> &getKeyAttrs() const { return this->getIndexInfo()->index_->GetKeyAttrs(); }
 
+  Tuple genOutputTuple(const Tuple *raw_tuple, const Schema *schema, const Schema *outputSchema) {
+    std::vector<Value> values;
+    // generate new_tuple from raw_tuple through outputschema
+    for (const Column &col : outputSchema->GetColumns()) {
+      Value val = raw_tuple->GetValue(schema, schema->GetColIdx(col.GetName()));
+      values.push_back(val);
+    }
+    return Tuple(values, this->GetOutputSchema());
+  }
+
   /** The index scan plan node to be executed. */
   const IndexScanPlanNode *plan_;
   IndexIterator<GenericKey<8>, RID, GenericComparator<8>> iter_;

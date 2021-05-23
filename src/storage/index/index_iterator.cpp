@@ -12,7 +12,10 @@ namespace bustub {
  * set your own input parameters
  */
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE::IndexIterator() { throw std::runtime_error("unimplemented"); }
+INDEXITERATOR_TYPE::IndexIterator() {
+  // wang qi think don't implement it is ok!
+  // throw std::runtime_error("unimplemented");
+}
 
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE::IndexIterator(BufferPoolManager *bpm, page_id_t page_id, int index)

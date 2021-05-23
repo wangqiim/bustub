@@ -15,10 +15,7 @@ namespace bustub {
 IndexScanExecutor::IndexScanExecutor(ExecutorContext *exec_ctx, const IndexScanPlanNode *plan)
     : AbstractExecutor(exec_ctx), plan_(plan) {}
 
-void IndexScanExecutor::Init() {
-  assert(this->getKeySchema().ToString() == this->GetOutputSchema()->ToString());
-  this->iter_ = this->getBeginIterator();
-}
+void IndexScanExecutor::Init() { this->iter_ = this->getBeginIterator(); }
 
 bool IndexScanExecutor::Next(Tuple *tuple, RID *rid) {
   while (this->iter_ != this->getEndIterator()) {
@@ -28,8 +25,8 @@ bool IndexScanExecutor::Next(Tuple *tuple, RID *rid) {
     *rid = (*(this->iter_)).second;
     ++this->iter_;
     this->getTableHeap()->GetTuple(*rid, tuple, this->exec_ctx_->GetTransaction());
-    *tuple = tuple->KeyFromTuple(this->getSchema(), this->getKeySchema(), this->getKeyAttrs());
-    if (this->plan_->GetPredicate()->Evaluate(tuple, this->GetOutputSchema()).GetAs<bool>()) {
+    if (this->plan_->GetPredicate()->Evaluate(tuple, &this->getSchema()).GetAs<bool>()) {
+      *tuple = this->genOutputTuple(tuple, &this->getSchema(), this->GetOutputSchema());
       return true;
     }
   }

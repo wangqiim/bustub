@@ -127,6 +127,15 @@ class Catalog {
     IndexInfo *indexInfo = new IndexInfo(key_schema, index_name, std::move(index), index_oid, table_name, keysize);
     this->indexes_.insert({index_oid, std::unique_ptr<IndexInfo>(indexInfo)});
     this->index_names_[table_name][index_name] = index_oid;
+    // populate existing data of the table
+    auto iter = this->GetTable(table_name)->table_->Begin(txn);
+    auto iter_end = this->GetTable(table_name)->table_->End();
+    while (iter != iter_end) {
+      Tuple key = iter->KeyFromTuple(schema, key_schema, key_attrs);
+      indexInfo->index_->InsertEntry(key, iter->GetRid(), txn);
+      iter++;
+    }
+
     return indexInfo;
   }
 
