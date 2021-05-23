@@ -20,8 +20,8 @@ UpdateExecutor::UpdateExecutor(ExecutorContext *exec_ctx, const UpdatePlanNode *
     : AbstractExecutor(exec_ctx), plan_(plan), child_executor_(std::move(child_executor)) {}
 
 void UpdateExecutor::Init() {
-  this->tableIndexes_ = this->exec_ctx_->GetCatalog()->GetTableIndexes(this->table_info_->name_);
   this->table_info_ = this->exec_ctx_->GetCatalog()->GetTable(this->plan_->TableOid());
+  this->tableIndexes_ = this->exec_ctx_->GetCatalog()->GetTableIndexes(this->table_info_->name_);
   if (this->child_executor_ != nullptr) {
     this->child_executor_->Init();
   }
@@ -36,12 +36,12 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
     // delete old_tuple and insert new index
     for (auto index : this->tableIndexes_) {
       Tuple old_key =
-          old_tup.KeyFromTuple(*(this->getSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
+          old_tup.KeyFromTuple(*(this->child_executor_->GetOutputSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
       index->index_->DeleteEntry(old_key, *rid, this->exec_ctx_->GetTransaction());
 
       Tuple key =
-          tuple->KeyFromTuple(*(this->getSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
-      index->index_->DeleteEntry(key, *rid, this->exec_ctx_->GetTransaction());
+          tuple->KeyFromTuple(*(this->child_executor_->GetOutputSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
+      index->index_->InsertEntry(key, *rid, this->exec_ctx_->GetTransaction());
     }
     return true;
   }
