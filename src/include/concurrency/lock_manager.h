@@ -18,6 +18,7 @@
 #include <memory>
 #include <mutex>  // NOLINT
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -118,6 +119,9 @@ class LockManager {
   /** Removes an edge from t1 -> t2. */
   void RemoveEdge(txn_id_t t1, txn_id_t t2);
 
+  /** clear edges in gragh_  */
+  void ClearGragh() { this->gragh_.clear(); }
+
   /**
    * Checks if the graph has a cycle, returning the newest transaction ID in the cycle if so.
    * @param[out] txn_id if the graph has a cycle, will contain the newest transaction ID
@@ -136,7 +140,7 @@ class LockManager {
       return true;
     }
     for (const auto &lockRequest : this->lock_table_[rid].request_queue_) {
-      if (lockRequest.granted_ == true) {
+      if (lockRequest.granted_) {
         return true;
       }
     }
@@ -148,7 +152,7 @@ class LockManager {
       return true;
     }
     for (const auto &lockRequest : this->lock_table_[rid].request_queue_) {
-      if (lockRequest.lock_mode_ == LockMode::EXCLUSIVE && lockRequest.granted_ == true) {
+      if (lockRequest.lock_mode_ == LockMode::EXCLUSIVE && lockRequest.granted_) {
         return true;
       }
     }
@@ -169,12 +173,28 @@ class LockManager {
     if (this->lock_table_[rid].upgrading_ && txn->GetExclusiveLockSet()->count(rid) != 0) {
       this->lock_table_[rid].upgrading_ = false;
     }
-    for (auto iter = this->lock_table_[rid].request_queue_.begin(); iter != this->lock_table_[rid].request_queue_.end(); iter++) {
+    for (auto iter = this->lock_table_[rid].request_queue_.begin(); iter != this->lock_table_[rid].request_queue_.end();
+         iter++) {
       if (iter->txn_id_ == txn->GetTransactionId()) {
         this->lock_table_[rid].request_queue_.erase(iter);
         return;
       }
     }
+  }
+
+  bool dfs(txn_id_t cur_txn_id, txn_id_t root_txn_id, std::unordered_map<txn_id_t, bool> *isVis) {
+    (*isVis)[cur_txn_id] = true;
+    for (const auto &t2 : this->gragh_[cur_txn_id]) {
+      if (t2 == root_txn_id) {
+        return true;
+      }
+      if (!(*isVis)[t2]) {
+        if (dfs(t2, root_txn_id, isVis)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
  private:
@@ -186,6 +206,11 @@ class LockManager {
   std::unordered_map<RID, LockRequestQueue> lock_table_;
   /** Waits-for graph representation. */
   std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
+  /** gragh */
+  std::vector<std::unordered_set<txn_id_t>> gragh_;
+  /** delection_thread to find rid by wait_rid_  **/
+  std::unordered_map<txn_id_t, RID> wait_rid_;
+  std::unordered_map<txn_id_t, bool> isAbort_;
 };
 
 }  // namespace bustub

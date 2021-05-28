@@ -152,7 +152,7 @@ void UpgradeTest() {
 }
 TEST(LockManagerTest, UpgradeLockTest) { UpgradeTest(); }
 
-TEST(LockManagerTest, DISABLED_GraphEdgeTest) {
+TEST(LockManagerTest, GraphEdgeTest) {
   LockManager lock_mgr{};
   TransactionManager txn_mgr{&lock_mgr};
   const int num_nodes = 100;
@@ -194,7 +194,7 @@ TEST(LockManagerTest, DISABLED_GraphEdgeTest) {
   }
 }
 
-TEST(LockManagerTest, DISABLED_BasicCycleTest) {
+TEST(LockManagerTest, BasicCycleTest) {
   LockManager lock_mgr{}; /* Use Deadlock detection */
   TransactionManager txn_mgr{&lock_mgr};
 
@@ -209,9 +209,20 @@ TEST(LockManagerTest, DISABLED_BasicCycleTest) {
 
   lock_mgr.RemoveEdge(1, 0);
   EXPECT_EQ(false, lock_mgr.HasCycle(&txn));
+
+  lock_mgr.AddEdge(1, 0);
+  lock_mgr.AddEdge(2, 1);
+  lock_mgr.AddEdge(3, 2);
+  EXPECT_EQ(4, lock_mgr.GetEdgeList().size());
+  EXPECT_EQ(true, lock_mgr.HasCycle(&txn));
+  EXPECT_EQ(1, txn);
+  lock_mgr.AddEdge(2, 3);
+  lock_mgr.AddEdge(4, 3);
+  EXPECT_EQ(true, lock_mgr.HasCycle(&txn));
+  EXPECT_EQ(3, txn);
 }
 
-TEST(LockManagerTest, DISABLED_BasicDeadlockDetectionTest) {
+TEST(LockManagerTest, BasicDeadlockDetectionTest) {
   LockManager lock_mgr{};
   cycle_detection_interval = std::chrono::milliseconds(500);
   TransactionManager txn_mgr{&lock_mgr};
@@ -318,7 +329,7 @@ TEST(LockManagerTest, DeadLockTest) {
     txn_mgr.Commit(txns[txn_id]);
     CheckCommitted(txns[txn_id]);
   };
-  
+
   std::vector<std::thread> threads;
   threads.reserve(num_rid);
   threads.emplace_back(std::thread{task1, 0});
@@ -327,48 +338,54 @@ TEST(LockManagerTest, DeadLockTest) {
     threads[i].join();
   }
 
-  // // acqure exclusive lock 1 -> 10
-  // auto task3 = [&](int txn_id) {
-  //   bool res;
-  //   for (int i = 0; i < num_rid; i++) {
-  //     res = lock_mgr.LockExclusive(txns[txn_id], rids[i]);
-  //     EXPECT_TRUE(res);
-  //     CheckGrowing(txns[txn_id]);
-  //   }
-  //   for (const RID &rid : rids) {
-  //     res = lock_mgr.Unlock(txns[txn_id], rid);
-  //     EXPECT_TRUE(res);
-  //     CheckShrinking(txns[txn_id]);
-  //   }
-  //   txn_mgr.Commit(txns[txn_id]);
-  //   CheckCommitted(txns[txn_id]);
-  // };
+  // acqure exclusive lock 1 -> 10
+  auto task3 = [&](int txn_id) {
+    bool res;
+    for (int i = 0; i < num_rid; i++) {
+      res = lock_mgr.LockExclusive(txns[txn_id], rids[i]);
+      EXPECT_TRUE(res);
+      CheckGrowing(txns[txn_id]);
+    }
+    for (const RID &rid : rids) {
+      res = lock_mgr.Unlock(txns[txn_id], rid);
+      EXPECT_TRUE(res);
+      CheckShrinking(txns[txn_id]);
+    }
+    txn_mgr.Commit(txns[txn_id]);
+    CheckCommitted(txns[txn_id]);
+  };
 
-  // // acqure exclusive lock 10 -> 1
-  // auto task4 = [&](int txn_id) {
-  //   bool res;
-  //   for (int i = num_rid - 1; i >= 0; i--) {
-  //     res = lock_mgr.LockExclusive(txns[txn_id], rids[i]);
-  //     EXPECT_TRUE(res);
-  //     CheckGrowing(txns[txn_id]);
-  //   }
-  //   for (const RID &rid : rids) {
-  //     res = lock_mgr.Unlock(txns[txn_id], rid);
-  //     EXPECT_TRUE(res);
-  //     CheckShrinking(txns[txn_id]);
-  //   }
-  //   txn_mgr.Commit(txns[txn_id]);
-  //   CheckCommitted(txns[txn_id]);
-  // };
-  
-  // threads.clear();
-  // threads.reserve(num_rid);
-  // threads.emplace_back(std::thread{task3, 2});
-  // threads.emplace_back(std::thread{task4, 3});
-  // // maybe deadlock
-  // for (int i = 0; i < 2; i++) {
-  //   threads[i].join();
-  // }
+  // acqure exclusive lock 10 -> 1
+  auto task4 = [&](int txn_id) {
+    bool res;
+    for (int i = num_rid - 1; i >= 0; i--) {
+      res = lock_mgr.LockExclusive(txns[txn_id], rids[i]);
+      if (!res) {
+        CheckAborted(txns[txn_id]);
+        txn_mgr.Abort(txns[txn_id]);
+        break;
+      }
+      CheckGrowing(txns[txn_id]);
+    }
+    if (txns[txn_id]->GetState() == TransactionState::GROWING) {
+      for (const RID &rid : rids) {
+        res = lock_mgr.Unlock(txns[txn_id], rid);
+        EXPECT_TRUE(res);
+        CheckShrinking(txns[txn_id]);
+      }
+      txn_mgr.Commit(txns[txn_id]);
+      CheckCommitted(txns[txn_id]);
+    }
+  };
+
+  threads.clear();
+  threads.reserve(num_rid);
+  threads.emplace_back(std::thread{task3, 2});
+  threads.emplace_back(std::thread{task4, 3});
+  // maybe deadlock
+  for (int i = 0; i < 2; i++) {
+    threads[i].join();
+  }
 
   for (int i = 0; i < num_txn; i++) {
     delete txns[i];
