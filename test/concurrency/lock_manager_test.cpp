@@ -77,7 +77,7 @@ void BasicTest1() {
     delete txns[i];
   }
 }
-TEST(LockManagerTest, DISABLED_BasicTest) { BasicTest1(); }
+TEST(LockManagerTest, BasicTest) { BasicTest1(); }
 
 void TwoPLTest() {
   LockManager lock_mgr{};
@@ -123,7 +123,7 @@ void TwoPLTest() {
 
   delete txn;
 }
-TEST(LockManagerTest, DISABLED_TwoPLTest) { TwoPLTest(); }
+TEST(LockManagerTest, TwoPLTest) { TwoPLTest(); }
 
 void UpgradeTest() {
   LockManager lock_mgr{};
@@ -150,7 +150,7 @@ void UpgradeTest() {
   txn_mgr.Commit(&txn);
   CheckCommitted(&txn);
 }
-TEST(LockManagerTest, DISABLED_UpgradeLockTest) { UpgradeTest(); }
+TEST(LockManagerTest, UpgradeLockTest) { UpgradeTest(); }
 
 TEST(LockManagerTest, DISABLED_GraphEdgeTest) {
   LockManager lock_mgr{};
@@ -266,5 +266,112 @@ TEST(LockManagerTest, DISABLED_BasicDeadlockDetectionTest) {
 
   delete txn0;
   delete txn1;
+}
+
+TEST(LockManagerTest, DeadLockTest) {
+  LockManager lock_mgr{};
+  TransactionManager txn_mgr{&lock_mgr};
+
+  std::vector<RID> rids;
+  std::vector<Transaction *> txns;
+  int num_rid = 100;
+  for (int i = 0; i < num_rid; i++) {
+    RID rid{i, static_cast<uint32_t>(i)};
+    rids.push_back(rid);
+  }
+  int num_txn = 4;
+  for (int i = 0; i < num_txn; i++) {
+    txns.push_back(txn_mgr.Begin());
+    EXPECT_EQ(i, txns[i]->GetTransactionId());
+  }
+
+  // acqure shared lock 1 -> 10
+  auto task1 = [&](int txn_id) {
+    bool res;
+    for (int i = 0; i < num_rid; i++) {
+      res = lock_mgr.LockShared(txns[txn_id], rids[i]);
+      EXPECT_TRUE(res);
+      CheckGrowing(txns[txn_id]);
+    }
+    for (const RID &rid : rids) {
+      res = lock_mgr.Unlock(txns[txn_id], rid);
+      EXPECT_TRUE(res);
+      CheckShrinking(txns[txn_id]);
+    }
+    txn_mgr.Commit(txns[txn_id]);
+    CheckCommitted(txns[txn_id]);
+  };
+
+  // acqure shared lock 10 -> 1
+  auto task2 = [&](int txn_id) {
+    bool res;
+    for (int i = num_rid - 1; i >= 0; i--) {
+      res = lock_mgr.LockShared(txns[txn_id], rids[i]);
+      EXPECT_TRUE(res);
+      CheckGrowing(txns[txn_id]);
+    }
+    for (const RID &rid : rids) {
+      res = lock_mgr.Unlock(txns[txn_id], rid);
+      EXPECT_TRUE(res);
+      CheckShrinking(txns[txn_id]);
+    }
+    txn_mgr.Commit(txns[txn_id]);
+    CheckCommitted(txns[txn_id]);
+  };
+  
+  std::vector<std::thread> threads;
+  threads.reserve(num_rid);
+  threads.emplace_back(std::thread{task1, 0});
+  threads.emplace_back(std::thread{task2, 1});
+  for (int i = 0; i < 2; i++) {
+    threads[i].join();
+  }
+
+  // // acqure exclusive lock 1 -> 10
+  // auto task3 = [&](int txn_id) {
+  //   bool res;
+  //   for (int i = 0; i < num_rid; i++) {
+  //     res = lock_mgr.LockExclusive(txns[txn_id], rids[i]);
+  //     EXPECT_TRUE(res);
+  //     CheckGrowing(txns[txn_id]);
+  //   }
+  //   for (const RID &rid : rids) {
+  //     res = lock_mgr.Unlock(txns[txn_id], rid);
+  //     EXPECT_TRUE(res);
+  //     CheckShrinking(txns[txn_id]);
+  //   }
+  //   txn_mgr.Commit(txns[txn_id]);
+  //   CheckCommitted(txns[txn_id]);
+  // };
+
+  // // acqure exclusive lock 10 -> 1
+  // auto task4 = [&](int txn_id) {
+  //   bool res;
+  //   for (int i = num_rid - 1; i >= 0; i--) {
+  //     res = lock_mgr.LockExclusive(txns[txn_id], rids[i]);
+  //     EXPECT_TRUE(res);
+  //     CheckGrowing(txns[txn_id]);
+  //   }
+  //   for (const RID &rid : rids) {
+  //     res = lock_mgr.Unlock(txns[txn_id], rid);
+  //     EXPECT_TRUE(res);
+  //     CheckShrinking(txns[txn_id]);
+  //   }
+  //   txn_mgr.Commit(txns[txn_id]);
+  //   CheckCommitted(txns[txn_id]);
+  // };
+  
+  // threads.clear();
+  // threads.reserve(num_rid);
+  // threads.emplace_back(std::thread{task3, 2});
+  // threads.emplace_back(std::thread{task4, 3});
+  // // maybe deadlock
+  // for (int i = 0; i < 2; i++) {
+  //   threads[i].join();
+  // }
+
+  for (int i = 0; i < num_txn; i++) {
+    delete txns[i];
+  }
 }
 }  // namespace bustub

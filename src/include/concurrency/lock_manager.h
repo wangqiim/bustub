@@ -131,6 +131,52 @@ class LockManager {
   /** Runs cycle detection in the background. */
   void RunCycleDetection();
 
+  bool isExistAnyLockInQueue(const RID &rid) {
+    if (this->lock_table_[rid].upgrading_) {
+      return true;
+    }
+    for (const auto &lockRequest : this->lock_table_[rid].request_queue_) {
+      if (lockRequest.granted_ == true) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool isExistExclusiveLockInQueue(const RID &rid) {
+    if (this->lock_table_[rid].upgrading_) {
+      return true;
+    }
+    for (const auto &lockRequest : this->lock_table_[rid].request_queue_) {
+      if (lockRequest.lock_mode_ == LockMode::EXCLUSIVE && lockRequest.granted_ == true) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void grantRequestInQueue(const RID &rid, txn_id_t txnId) {
+    for (auto &lockRequest : this->lock_table_[rid].request_queue_) {
+      if (lockRequest.txn_id_ == txnId) {
+        lockRequest.granted_ = true;
+        return;
+      }
+    }
+  }
+
+  /* if this txn make queue upgrade, then deupgrade it */
+  void eraseRequestInQueue(Transaction *txn, const RID &rid) {
+    if (this->lock_table_[rid].upgrading_ && txn->GetExclusiveLockSet()->count(rid) != 0) {
+      this->lock_table_[rid].upgrading_ = false;
+    }
+    for (auto iter = this->lock_table_[rid].request_queue_.begin(); iter != this->lock_table_[rid].request_queue_.end(); iter++) {
+      if (iter->txn_id_ == txn->GetTransactionId()) {
+        this->lock_table_[rid].request_queue_.erase(iter);
+        return;
+      }
+    }
+  }
+
  private:
   std::mutex latch_;
   std::atomic<bool> enable_cycle_detection_;
