@@ -38,10 +38,12 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
     }
     this->wait_rid_[txn->GetTransactionId()] = rid;
     this->lock_table_[rid].cv_.wait(lock);
+    this->wait_rid_.erase(txn->GetTransactionId());
     this->waits_for_[txn->GetTransactionId()].clear();
     if (this->isAbort_[txn->GetTransactionId()]) {
       this->isAbort_.erase(txn->GetTransactionId());
       txn->SetState(TransactionState::ABORTED);
+      throw TransactionAbortException(txn->GetTransactionId(), AbortReason::DEADLOCK);
       return false;
     }
   }
@@ -70,10 +72,12 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
     }
     this->wait_rid_[txn->GetTransactionId()] = rid;
     this->lock_table_[rid].cv_.wait(lock);
+    this->wait_rid_.erase(txn->GetTransactionId());
     this->waits_for_[txn->GetTransactionId()].clear();
     if (this->isAbort_[txn->GetTransactionId()]) {
       this->isAbort_.erase(txn->GetTransactionId());
       txn->SetState(TransactionState::ABORTED);
+      throw TransactionAbortException(txn->GetTransactionId(), AbortReason::DEADLOCK);
       return false;
     }
   }
@@ -100,10 +104,12 @@ bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
     }
     this->wait_rid_[txn->GetTransactionId()] = rid;
     this->lock_table_[rid].cv_.wait(lock);
+    this->wait_rid_.erase(txn->GetTransactionId());
     this->waits_for_[txn->GetTransactionId()].clear();
     if (this->isAbort_[txn->GetTransactionId()]) {
       this->isAbort_.erase(txn->GetTransactionId());
       txn->SetState(TransactionState::ABORTED);
+      throw TransactionAbortException(txn->GetTransactionId(), AbortReason::DEADLOCK);
       return false;
     }
   }
@@ -132,44 +138,24 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
   return true;
 }
 
-void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {
-  int node_size = static_cast<txn_id_t>(this->gragh_.size());
-  if (node_size <= t1 || node_size <= t2) {
-    this->gragh_.resize(std::max(t1 + 1, t2 + 1));
+void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) { this->gragh_[t1].insert(t2); }
+
+void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) { 
+  this->gragh_[t1].erase(t2);
+  if (this->gragh_[t1].empty()) {
+    this->gragh_.erase(t1);
   }
-  this->gragh_[t1].insert(t2);
 }
 
-void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) { this->gragh_[t1].erase(t2); }
-
 bool LockManager::HasCycle(txn_id_t *txn_id) {
-  // 0. get ready, incresing order
-  std::set<txn_id_t> nodes;
-  std::unordered_map<txn_id_t, bool> isVis;
-  txn_id_t maxsize = static_cast<txn_id_t>(gragh_.size());
-  for (txn_id_t t1 = 0; t1 < maxsize; t1++) {
-    if (!this->gragh_[t1].empty()) {
-      nodes.insert(t1);
-      isVis[t1] = false;
-    }
-    for (const auto &t2 : this->gragh_[t1]) {
-      nodes.insert(t2);
-      isVis[t2] = false;
-    }
-  }
-  if (nodes.empty()) {
-    return false;
-  }
-  // 1. check cycle
-  auto iter = nodes.end();
-  while ((iter--) != nodes.begin()) {
-    for (auto &txn_vis : isVis) {
-      txn_vis.second = false;
-    }
-    txn_id_t cur_txn_id = *iter;
-    if (dfs(cur_txn_id, cur_txn_id, &isVis)) {
-      *txn_id = cur_txn_id;
-      return true;
+  std::unordered_set<txn_id_t> isVis_;
+  std::stack<txn_id_t> cycle_stack_;
+  std::unordered_set<txn_id_t> cycle_set_;
+  for (auto iter = this->gragh_.begin(); iter != this->gragh_.end(); iter++) {
+    if (isVis_.count(iter->first) == 0) {
+      if(this->dfs(iter->first, *txn_id, &isVis_, &cycle_stack_, &cycle_set_)) {
+        return true;
+      }
     }
   }
   return false;
@@ -177,10 +163,9 @@ bool LockManager::HasCycle(txn_id_t *txn_id) {
 
 std::vector<std::pair<txn_id_t, txn_id_t>> LockManager::GetEdgeList() {
   std::vector<std::pair<txn_id_t, txn_id_t>> res;
-  int node_size = static_cast<txn_id_t>(this->gragh_.size());
-  for (txn_id_t t1 = 0; t1 < node_size; t1++) {
-    for (const auto &t2 : this->gragh_[t1]) {
-      res.emplace_back(t1, t2);
+  for (auto iter = this->gragh_.begin(); iter != this->gragh_.end(); iter++) {
+    for (auto t2 : iter->second) {
+      res.emplace_back(iter->first, t2);
     }
   }
   return res;
@@ -204,7 +189,6 @@ void LockManager::RunCycleDetection() {
         RID rid = this->wait_rid_[txn_id];
         // std::cout << "HasCycle, rid = " << rid << std::endl;
         this->wait_rid_.erase(txn_id);
-        this->lock_table_[rid].upgrading_ = false;
         for (auto iter = this->lock_table_[rid].request_queue_.begin();
              iter != this->lock_table_[rid].request_queue_.end(); iter++) {
           if (iter->txn_id_ == txn_id) {
@@ -214,7 +198,7 @@ void LockManager::RunCycleDetection() {
         }
         this->lock_table_[rid].cv_.notify_all();
       }
-      this->ClearGragh();
+      this->gragh_.clear();
     }
   }
 }

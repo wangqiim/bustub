@@ -14,9 +14,14 @@
 
 #include <algorithm>
 #include <condition_variable>  // NOLINT
+#include <fstream>
 #include <list>
 #include <memory>
 #include <mutex>  // NOLINT
+#include <string>
+#include <map>
+#include <set>
+#include <stack>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -119,9 +124,6 @@ class LockManager {
   /** Removes an edge from t1 -> t2. */
   void RemoveEdge(txn_id_t t1, txn_id_t t2);
 
-  /** clear edges in gragh_  */
-  void ClearGragh() { this->gragh_.clear(); }
-
   /**
    * Checks if the graph has a cycle, returning the newest transaction ID in the cycle if so.
    * @param[out] txn_id if the graph has a cycle, will contain the newest transaction ID
@@ -182,18 +184,31 @@ class LockManager {
     }
   }
 
-  bool dfs(txn_id_t cur_txn_id, txn_id_t root_txn_id, std::unordered_map<txn_id_t, bool> *isVis) {
-    (*isVis)[cur_txn_id] = true;
-    for (const auto &t2 : this->gragh_[cur_txn_id]) {
-      if (t2 == root_txn_id) {
+  bool dfs(txn_id_t root_txn_id, txn_id_t &max_txn_id, std::unordered_set<txn_id_t> *isVis_, std::stack<txn_id_t> *cycle_stack_, std::unordered_set<txn_id_t> *cycle_set_) {
+    isVis_->insert(root_txn_id);
+    cycle_stack_->push(root_txn_id);
+    cycle_set_->insert(root_txn_id);
+    for (const txn_id_t &t2 : this->gragh_[root_txn_id]) {
+      // if t2 has been visited
+      if (isVis_->count(t2) != 0) {
+        // if t2 don't exist in stack, skip it
+        if (cycle_set_->count(t2) == 0) {
+          continue;
+        }
+        // if t2 exist in stack, there is a cycle, backtrack
+        max_txn_id = t2;
+        while (cycle_stack_->top() != t2) {
+          max_txn_id = std::max(max_txn_id, cycle_stack_->top());
+          cycle_stack_->pop();
+        }
         return true;
       }
-      if (!(*isVis)[t2]) {
-        if (dfs(t2, root_txn_id, isVis)) {
-          return true;
-        }
+      if (dfs(t2, max_txn_id, isVis_, cycle_stack_, cycle_set_)) {
+        return true;
       }
     }
+    cycle_stack_->pop();
+    cycle_set_->erase(root_txn_id);
     return false;
   }
 
@@ -206,9 +221,10 @@ class LockManager {
   std::unordered_map<RID, LockRequestQueue> lock_table_;
   /** Waits-for graph representation. */
   std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
+
   /** gragh */
-  std::vector<std::unordered_set<txn_id_t>> gragh_;
-  /** delection_thread to find rid by wait_rid_  **/
+  std::map<txn_id_t, std::set<txn_id_t>> gragh_;
+  /** In order to communicate between txn and detection */
   std::unordered_map<txn_id_t, RID> wait_rid_;
   std::unordered_map<txn_id_t, bool> isAbort_;
 };
