@@ -140,7 +140,7 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
 
 void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) { this->gragh_[t1].insert(t2); }
 
-void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) { 
+void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {
   this->gragh_[t1].erase(t2);
   if (this->gragh_[t1].empty()) {
     this->gragh_.erase(t1);
@@ -151,9 +151,9 @@ bool LockManager::HasCycle(txn_id_t *txn_id) {
   std::unordered_set<txn_id_t> isVis_;
   std::stack<txn_id_t> cycle_stack_;
   std::unordered_set<txn_id_t> cycle_set_;
-  for (auto iter = this->gragh_.begin(); iter != this->gragh_.end(); iter++) {
-    if (isVis_.count(iter->first) == 0) {
-      if(this->dfs(iter->first, *txn_id, &isVis_, &cycle_stack_, &cycle_set_)) {
+  for (const auto &iter : this->gragh_) {
+    if (isVis_.count(iter.first) == 0) {
+      if (this->dfs(iter.first, txn_id, &isVis_, &cycle_stack_, &cycle_set_)) {
         return true;
       }
     }
@@ -163,9 +163,9 @@ bool LockManager::HasCycle(txn_id_t *txn_id) {
 
 std::vector<std::pair<txn_id_t, txn_id_t>> LockManager::GetEdgeList() {
   std::vector<std::pair<txn_id_t, txn_id_t>> res;
-  for (auto iter = this->gragh_.begin(); iter != this->gragh_.end(); iter++) {
-    for (auto t2 : iter->second) {
-      res.emplace_back(iter->first, t2);
+  for (const auto &iter : this->gragh_) {
+    for (const auto &t2 : iter.second) {
+      res.emplace_back(iter.first, t2);
     }
   }
   return res;

@@ -16,12 +16,12 @@
 #include <condition_variable>  // NOLINT
 #include <fstream>
 #include <list>
+#include <map>
 #include <memory>
 #include <mutex>  // NOLINT
-#include <string>
-#include <map>
 #include <set>
 #include <stack>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -184,7 +184,8 @@ class LockManager {
     }
   }
 
-  bool dfs(txn_id_t root_txn_id, txn_id_t &max_txn_id, std::unordered_set<txn_id_t> *isVis_, std::stack<txn_id_t> *cycle_stack_, std::unordered_set<txn_id_t> *cycle_set_) {
+  bool dfs(txn_id_t root_txn_id, txn_id_t *max_txn_id, std::unordered_set<txn_id_t> *isVis_,
+           std::stack<txn_id_t> *cycle_stack_, std::unordered_set<txn_id_t> *cycle_set_) {
     isVis_->insert(root_txn_id);
     cycle_stack_->push(root_txn_id);
     cycle_set_->insert(root_txn_id);
@@ -196,9 +197,9 @@ class LockManager {
           continue;
         }
         // if t2 exist in stack, there is a cycle, backtrack
-        max_txn_id = t2;
+        *max_txn_id = t2;
         while (cycle_stack_->top() != t2) {
-          max_txn_id = std::max(max_txn_id, cycle_stack_->top());
+          *max_txn_id = std::max(*max_txn_id, cycle_stack_->top());
           cycle_stack_->pop();
         }
         return true;
