@@ -21,8 +21,14 @@ namespace bustub {
 // think about isolation level
 bool LockManager::LockShared(Transaction *txn, const RID &rid) {
   std::unique_lock<std::mutex> lock(this->latch_);
+  if (txn->GetIsolationLevel() == IsolationLevel::READ_UNCOMMITTED) {
+    txn->SetState(TransactionState::ABORTED);
+    throw TransactionAbortException(txn->GetTransactionId(), AbortReason::LOCKSHARED_ON_READ_UNCOMMITTED);
+    return false;
+  }
   // 1. if the txn isn't GROWING, abort it and return false
   if (txn->GetState() != TransactionState::GROWING) {
+    // TODO(wangqi): throw
     txn->SetState(TransactionState::ABORTED);
     return false;
   }
@@ -58,6 +64,7 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
   // 1. if the txn isn't GROWING, return false
   if (txn->GetState() != TransactionState::GROWING) {
     txn->SetState(TransactionState::ABORTED);
+    // TODO(wangqi): throw
     return false;
   }
   // 2. add txn in lock_table_
@@ -93,10 +100,11 @@ bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
   // 1. if the txn isn't GROWING, return false
   if (txn->GetState() != TransactionState::GROWING) {
     txn->SetState(TransactionState::ABORTED);
+    // TODO(wangqi): throw
     return false;
   }
   // 2.  check all request in queue, if can't upgrade lock, wait
-  while (this->isExistExclusiveLockInQueue(rid)) {
+  while (this->isHasUpgradeOrOtherLockInQueue(rid, txn->GetTransactionId())) {
     for (const auto &lockRequest : this->lock_table_[rid].request_queue_) {
       if (lockRequest.granted_ && lockRequest.txn_id_ != txn->GetTransactionId()) {
         this->waits_for_[txn->GetTransactionId()].push_back(lockRequest.txn_id_);
@@ -125,7 +133,7 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
   std::unique_lock<std::mutex> lock(this->latch_);
   // if state is abort, we also need to unlock
   // 1. if state is not growing and shrinking, return false
-  if (txn->GetState() == TransactionState::GROWING) {
+  if (txn->GetState() == TransactionState::GROWING && txn->GetIsolationLevel() == IsolationLevel::REPEATABLE_READ) {
     txn->SetState(TransactionState::SHRINKING);
   }
   // 2. erase tx from request_queue and notify_all threads in request queue

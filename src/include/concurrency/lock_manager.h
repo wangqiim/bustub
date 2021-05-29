@@ -161,6 +161,18 @@ class LockManager {
     return false;
   }
 
+  bool isHasUpgradeOrOtherLockInQueue(const RID &rid, txn_id_t txn_id) {
+    if (this->lock_table_[rid].upgrading_) {
+      return true;
+    }
+    for (const auto &lockRequest : this->lock_table_[rid].request_queue_) {
+      if (lockRequest.granted_ && lockRequest.txn_id_ != txn_id) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   void grantRequestInQueue(const RID &rid, txn_id_t txnId) {
     for (auto &lockRequest : this->lock_table_[rid].request_queue_) {
       if (lockRequest.txn_id_ == txnId) {
