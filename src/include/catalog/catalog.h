@@ -160,6 +160,8 @@ class Catalog {
     return indexInfos;
   }
 
+  LockManager *GetLockManger() { return this->lock_manager_; }
+
  private:
   [[maybe_unused]] BufferPoolManager *bpm_;
   [[maybe_unused]] LockManager *lock_manager_;

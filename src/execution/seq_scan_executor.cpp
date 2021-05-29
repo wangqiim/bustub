@@ -31,6 +31,12 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
     if (this->plan_->GetPredicate() == nullptr ||
         this->plan_->GetPredicate()->Evaluate(&raw_tuple, this->getSchema()).GetAs<bool>()) {
       *tuple = this->genOutputTuple(&raw_tuple, this->getSchema(), this->GetOutputSchema());
+      if (this->exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::REPEATABLE_READ) {
+        if (!this->exec_ctx_->GetTransaction()->IsSharedLocked(*rid) &&
+            !this->exec_ctx_->GetTransaction()->IsExclusiveLocked(*rid)) {
+          this->exec_ctx_->GetCatalog()->GetLockManger()->LockShared(this->exec_ctx_->GetTransaction(), *rid);
+        }
+      }
       return true;
     }
   }

@@ -29,11 +29,18 @@ void DeleteExecutor::Init() {
 
 bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   if (this->child_executor_->Next(tuple, rid)) {
+    if (this->exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::REPEATABLE_READ) {
+      this->exec_ctx_->GetCatalog()->GetLockManger()->LockUpgrade(this->exec_ctx_->GetTransaction(), *rid);
+    } else {  // RUC or RR
+      this->exec_ctx_->GetCatalog()->GetLockManger()->LockExclusive(this->exec_ctx_->GetTransaction(), *rid);
+    }
     assert(this->table_info_->table_->MarkDelete(*rid, this->exec_ctx_->GetTransaction()) == true);
     for (auto index : this->tableIndexes_) {
       Tuple key =
           tuple->KeyFromTuple(*(this->getSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
       index->index_->DeleteEntry(key, *rid, this->exec_ctx_->GetTransaction());
+      this->exec_ctx_->GetTransaction()->AppendTableWriteRecord(IndexWriteRecord(
+          *rid, this->plan_->TableOid(), WType::DELETE, *tuple, index->index_oid_, this->exec_ctx_->GetCatalog()));
     }
     return true;
   }

@@ -40,18 +40,23 @@ bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
       Tuple key =
           raw_tuple.KeyFromTuple(*(this->getSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
       index->index_->InsertEntry(key, *rid, this->exec_ctx_->GetTransaction());
+      this->exec_ctx_->GetTransaction()->AppendTableWriteRecord(IndexWriteRecord(
+          *rid, this->plan_->TableOid(), WType::INSERT, raw_tuple, index->index_oid_, this->exec_ctx_->GetCatalog()));
     }
     this->num_inserted_++;
+    this->exec_ctx_->GetCatalog()->GetLockManger()->LockExclusive(this->exec_ctx_->GetTransaction(), *rid);
     return true;
   }
-
   if (child_executor_->Next(&raw_tuple, rid)) {
     assert(this->getTableHeap()->InsertTuple(raw_tuple, rid, this->exec_ctx_->GetTransaction()) == true);
     for (auto index : this->tableIndexes_) {
       Tuple key =
           raw_tuple.KeyFromTuple(*(this->getSchema()), *(index->index_->GetKeySchema()), index->index_->GetKeyAttrs());
       index->index_->InsertEntry(key, *rid, this->exec_ctx_->GetTransaction());
+      this->exec_ctx_->GetTransaction()->AppendTableWriteRecord(IndexWriteRecord(
+          *rid, this->plan_->TableOid(), WType::INSERT, raw_tuple, index->index_oid_, this->exec_ctx_->GetCatalog()));
     }
+    this->exec_ctx_->GetCatalog()->GetLockManger()->LockExclusive(this->exec_ctx_->GetTransaction(), *rid);
     return true;
   }
   return false;

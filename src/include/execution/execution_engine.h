@@ -48,6 +48,12 @@ class ExecutionEngine {
       }
     } catch (Exception &e) {
       // TODO(student): handle exceptions
+      std::cout << "throw exception that i don't catch" << std::endl;
+      assert(false);
+      // txn_mgr_->Abort(exec_ctx->GetTransaction());
+    } catch (std::exception &e) {
+      // std::cout << "i get it !!" << std::endl;
+      txn_mgr_->Abort(exec_ctx->GetTransaction());
     }
 
     return true;
