@@ -28,6 +28,14 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
     raw_tuple = *(iter++);
     *rid = raw_tuple.GetRid();
     // Test sample oriented programming
+    if (this->exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::REPEATABLE_READ ||
+        this->exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_COMMITTED) {
+      if (!this->exec_ctx_->GetTransaction()->IsSharedLocked(*rid) &&
+          !this->exec_ctx_->GetTransaction()->IsExclusiveLocked(*rid)) {
+        this->exec_ctx_->GetCatalog()->GetLockManger()->LockShared(this->exec_ctx_->GetTransaction(), *rid);
+      }
+    }
+    bool res = false;
     if (this->plan_->GetPredicate() == nullptr ||
         this->plan_->GetPredicate()->Evaluate(&raw_tuple, this->getSchema()).GetAs<bool>()) {
       *tuple = this->genOutputTuple(&raw_tuple, this->getSchema(), this->GetOutputSchema());
@@ -37,6 +45,14 @@ bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
           this->exec_ctx_->GetCatalog()->GetLockManger()->LockShared(this->exec_ctx_->GetTransaction(), *rid);
         }
       }
+      res = true;
+    }
+    if (this->exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_COMMITTED) {
+      if (this->exec_ctx_->GetTransaction()->IsSharedLocked(*rid)) {
+        this->exec_ctx_->GetCatalog()->GetLockManger()->Unlock(this->exec_ctx_->GetTransaction(), *rid);
+      }
+    }
+    if (res) {
       return true;
     }
   }
